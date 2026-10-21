@@ -27,6 +27,12 @@ namespace ember::ui
         static void drawKnob (juce::Graphics&, const KnobSpec&, float normalised,
                               bool highlighted = false, bool dragging = false);
 
+        /** Draws a knob into a component that is centred on the knob and sized to
+            cover it plus a margin (this is what PanelKnob uses, and what the
+            headless preview uses when it wants to check the editor path). */
+        static void paintKnobComponent (juce::Graphics&, const KnobSpec&, juce::Rectangle<float> localArea,
+                                        float normalised, bool highlighted = false, bool dragging = false);
+
         static void drawKnobRing (juce::Graphics&, const KnobSpec&, float normalised);
 
         static void drawMeterNeedle (juce::Graphics&, const PanelLayout&, const MeterState&);

@@ -49,9 +49,19 @@ int main (int argc, char** argv)
         { 8, 0.50f }    // headroom
     };
 
+    // Draw through the exact same entry point the editor's PanelKnob uses
+    // (component rectangle centred on the knob), so the preview proves the
+    // editor placement maths rather than a separate copy of it.
     for (auto d : demo)
+    {
         if (auto* k = layout.knobFor (d.index))
-            ember::ui::PanelRenderer::drawKnob (g, *k, d.norm, d.index == 0, false);
+        {
+            const auto area = juce::Rectangle<float> (k->centre.x - k->radius * 1.3f,
+                                                      k->centre.y - k->radius * 1.3f,
+                                                      k->radius * 2.6f, k->radius * 2.6f);
+            ember::ui::PanelRenderer::paintKnobComponent (g, *k, area, d.norm, d.index == 0, false);
+        }
+    }
 
     ember::ui::MeterState meter;
     meter.grDb = 4.2f;

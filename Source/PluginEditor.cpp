@@ -17,17 +17,8 @@ PanelKnob::PanelKnob (KnobSpec s, const juce::String& id)
 
 void PanelKnob::paint (juce::Graphics& g)
 {
-    juce::Graphics::ScopedSaveState state (g);
-
-    // the bounds are centred on the hardware knob position, so map design units
-    // straight onto the component with a uniform scale
-    const float px = static_cast<float> (getHeight()) / (spec.radius * 2.6f);
-    const auto centre = getLocalBounds().toFloat().getCentre();
-    g.addTransform (juce::AffineTransform::translation (centre.x - spec.centre.x * px,
-                                                       centre.y - spec.centre.y * px).scaled (px));
-
     const float norm = static_cast<float> ((getValue() - getMinimum()) / (getMaximum() - getMinimum()));
-    PanelRenderer::drawKnob (g, spec, norm, hovered, isMouseButtonDown());
+    PanelRenderer::paintKnobComponent (g, spec, getLocalBounds().toFloat(), norm, hovered, isMouseButtonDown());
 }
 
 void PanelKnob::mouseEnter (const juce::MouseEvent& e)

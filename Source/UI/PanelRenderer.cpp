@@ -546,6 +546,24 @@ void PanelRenderer::drawKnobRing (juce::Graphics& g, const KnobSpec& k, float va
     g.fillPath (p);
 }
 
+void PanelRenderer::paintKnobComponent (juce::Graphics& g, const KnobSpec& k, juce::Rectangle<float> localArea,
+                                        float normalised, bool highlighted, bool dragging)
+{
+    if (localArea.isEmpty())
+        return;
+
+    // design units -> component pixels: scale first, then translate so the
+    // knob centre lands exactly on the component centre
+    const float px = localArea.getHeight() / (k.radius * 2.6f);
+    const auto centre = localArea.getCentre();
+
+    juce::Graphics::ScopedSaveState state (g);
+    g.addTransform (juce::AffineTransform::scale (px)
+                        .translated (centre.x - k.centre.x * px, centre.y - k.centre.y * px));
+
+    drawKnob (g, k, normalised, highlighted, dragging);
+}
+
 void PanelRenderer::drawKnob (juce::Graphics& g, const KnobSpec& k, float normalised,
                               bool highlighted, bool dragging)
 {
