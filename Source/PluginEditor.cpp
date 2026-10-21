@@ -3,20 +3,21 @@
 using namespace ember::ui;
 
 //==============================================================================
-PanelKnob::PanelKnob (KnobSpec s, const juce::String& id, double minValue, double maxValue)
+PanelKnob::PanelKnob (KnobSpec s, const juce::String& id, double minValue, double maxValue,
+                      double scaleForDisplay)
     : spec (s), paramId (id)
 {
     setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     setRotaryParameters (0.0f, juce::MathConstants<float>::twoPi, false);
-    // the two-position impedance / response switches detent, everything else is
-    // continuous (the 2 dB attenuator steps are applied in the processor)
-    setRange (minValue, maxValue, spec.style == KnobStyle::small ? 1.0 : 0.001);
+    setRange (minValue, maxValue, 0.0001);
     setVelocityBasedMode (false);
-    setMouseDragSensitivity (spec.style == KnobStyle::big ? 280 : 200);
+    setMouseDragSensitivity (spec.style == KnobStyle::big ? 260 : 190);
     setWantsKeyboardFocus (false);
     setOpaque (false);
     setPopupMenuEnabled (false);
+    displayOffset = 0.0;
+    juce::ignoreUnused (scaleForDisplay);
 }
 
 void PanelKnob::paint (juce::Graphics& g)
@@ -70,7 +71,6 @@ PanelToggle::PanelToggle (const juce::String& text, const juce::String& paramete
     setClickingTogglesState (true);
     setWantsKeyboardFocus (false);
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
-    setTooltip (text);
 }
 
 void PanelToggle::paintButton (juce::Graphics& g, bool highlighted, bool down)
@@ -78,10 +78,10 @@ void PanelToggle::paintButton (juce::Graphics& g, bool highlighted, bool down)
     if (highlighted || down)
     {
         g.setColour (juce::Colour (0x18ffd9a0));
-        g.fillEllipse (getLocalBounds().toFloat().withSizeKeepingCentre (getWidth() * 0.9f, getHeight() * 0.5f));
+        g.fillEllipse (getLocalBounds().toFloat());
     }
 
-    PanelRenderer::drawToggle (g, getLocalBounds().toFloat(), getToggleState(), getButtonText());
+    PanelRenderer::drawToggle (g, getLocalBounds().toFloat(), getToggleState());
 }
 
 void PanelToggle::mouseDown (const juce::MouseEvent& e)
@@ -102,26 +102,26 @@ Ember175AudioProcessorEditor::Ember175AudioProcessorEditor (Ember175AudioProcess
 {
     setOpaque (true);
     setResizable (true, true);
-    setResizeLimits (720, 216, 1920, 576);
+    setResizeLimits (650, 130, 2600, 520);
     if (auto* c = getConstrainer())
         c->setFixedAspectRatio (kDesignWidth / kDesignHeight);
-    setSize (1200, 360);
+    setSize (1300, 260);
 
     // layout index -> (parameter, minimum, maximum)
-    attachKnob (0, "lowHigh",    0.0, 1.0);
-    attachKnob (1, "input",      ember::model::kInputMinDb,  ember::model::kInputMaxDb);
-    attachKnob (2, "impedance",  0.0, 1.0);
-    attachKnob (3, "vernier",    -ember::model::kVernierDb, ember::model::kVernierDb);
-    attachKnob (4, "attack",     0.0, 1.0);
-    attachKnob (5, "output",     ember::model::kOutputMinDb, ember::model::kOutputMaxDb);
-    attachKnob (6, "mix",        0.0, 100.0);
-    attachKnob (7, "release",    0.0, 1.0);
+    attachKnob (0, "lowHigh",   0.0, 1.0);
+    attachKnob (1, "input",     0.0, 40.0);
+    attachKnob (2, "impedance", 0.0, 1.0);
+    attachKnob (3, "vernier",  -ember::model::kVernierDb, ember::model::kVernierDb);
+    attachKnob (4, "attack",    0.0, 1.0);
+    attachKnob (5, "output",    0.0, 40.0);
+    attachKnob (6, "mix",       0.0, 100.0);
+    attachKnob (7, "release",   0.0, 1.0);
 
     for (auto* b : { &linkButton, &powerButton })
     {
         addAndMakeVisible (*b);
         b->onStateChange = [this] { repaint(); };
-        b->onPopupMenu = [this] (juce::Point<int> p) { showSetupMenu (p); };
+        b->onPopupMenu = [this] (juce::Point<int> pt) { showSetupMenu (pt); };
     }
 
     linkAtt  = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
@@ -146,8 +146,13 @@ void Ember175AudioProcessorEditor::attachKnob (int layoutIndex, const char* para
         return;
 
     auto knob = std::make_unique<PanelKnob> (*spec, paramId, min, max);
-    knob->onHover = [this] (PanelKnob* k) { hoveredKnob = k; refreshStatus(); repaint(); };
-    knob->onPopupMenu = [this] (juce::Point<int> p) { showSetupMenu (p); };
+    knob->onHover = [this] (PanelKnob* k)
+    {
+        hoveredKnob = k;
+        refreshTooltip();
+        repaint();
+    };
+    knob->onPopupMenu = [this] (juce::Point<int> pt) { showSetupMenu (pt); };
     addAndMakeVisible (*knob);
 
     knobAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -161,7 +166,7 @@ void Ember175AudioProcessorEditor::attachKnob (int layoutIndex, const char* para
 
 void Ember175AudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff0f0c0c));
+    g.fillAll (juce::Colour (0xff0b0909));
 
     juce::Graphics::ScopedSaveState state (g);
     g.addTransform (juce::AffineTransform::translation (mapping.origin.x, mapping.origin.y));
@@ -179,10 +184,8 @@ void Ember175AudioProcessorEditor::paint (juce::Graphics& g)
 
     // lamps: amber shows gain reduction activity, red is mains
     PanelRenderer::drawLamp (g, layout.lamp, layout.lampRadius, juce::Colour (0xffffa53a), activity);
-    PanelRenderer::drawLamp (g, layout.powerLamp, layout.powerLampRadius, juce::Colour (0xffff3a24),
-                             m.powered ? 1.0f : 0.0f);
-
-    PanelRenderer::drawStatus (g, layout.statusLine, statusText);
+    PanelRenderer::drawLamp (g, layout.powerLamp, layout.powerLampRadius,
+                             juce::Colour (0xffff2d18), m.powered ? 1.0f : 0.0f);
 }
 
 void Ember175AudioProcessorEditor::resized()
@@ -194,9 +197,8 @@ void Ember175AudioProcessorEditor::resized()
     {
         auto& k = *knobs[static_cast<size_t> (i)];
         const auto& spec = k.getSpec();
-        k.setBounds (place ({ spec.centre.x - spec.radius * 1.3f,
-                              spec.centre.y - spec.radius * 1.3f,
-                              spec.radius * 2.6f, spec.radius * 2.6f }));
+        const float half = spec.skirtRadius * 1.42f;
+        k.setBounds (place ({ spec.centre.x - half, spec.centre.y - half, half * 2.0f, half * 2.0f }));
     }
 
     linkButton.setBounds (place (layout.linkToggle));
@@ -216,8 +218,6 @@ void Ember175AudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
 
 void Ember175AudioProcessorEditor::showSetupMenu (juce::Point<int> screenPosition)
 {
-    auto* state = &processor.parameters;
-
     juce::PopupMenu menu;
     menu.addSectionHeader ("EMBER 175-B setup");
 
@@ -293,31 +293,26 @@ void Ember175AudioProcessorEditor::showSetupMenu (juce::Point<int> screenPositio
     });
 }
 
-void Ember175AudioProcessorEditor::refreshStatus()
+void Ember175AudioProcessorEditor::refreshTooltip()
 {
-    if (hoveredKnob != nullptr)
-    {
-        const auto& spec = hoveredKnob->getSpec();
-        juce::String value;
-        if (spec.style == KnobStyle::small)
-            value = hoveredKnob->getNormalised() > 0.5f ? spec.rightLabel : spec.leftLabel;
-        else if (auto* param = processor.parameters.getParameter (hoveredKnob->getParamId()))
-            value = param->getCurrentValueAsText();
+    hoverText.clear();
 
-        const juce::String name = spec.label.isNotEmpty() ? spec.label : spec.captionAbove ? juce::String() : juce::String();
-        statusText = (name.isNotEmpty() ? name + "   " : juce::String()) + value;
+    if (hoveredKnob == nullptr)
         return;
-    }
 
-    const float gr = processor.getGainReductionDb();
-    const float lvl = processor.getOutputLevelDb();
-    const float attackMs = ember::model::attackNormToMs (processor.read ("attack"));
+    const auto& spec = hoveredKnob->getSpec();
+    const auto id = hoveredKnob->getParamId();
 
-    statusText = "GR " + juce::String (gr < 0.05f ? 0.0f : gr, 1) + " dB"
-               + "      OUT " + (lvl < -90.0f ? juce::String ("-inf") : juce::String (lvl, 1)) + " dBFS"
-               + "      ATTACK " + (attackMs <= 0.0f ? juce::String ("OFF")
-                                                    : juce::String (attackMs, 2) + " ms")
-               + "      RELEASE " + juce::String (ember::model::releaseFromNorm (processor.read ("release")), 0) + " ms";
+    juce::String name = spec.caption;
+    if (name.isEmpty())
+        name = id;
+
+    juce::String value;
+    if (auto* param = processor.parameters.getParameter (id))
+        value = param->getCurrentValueAsText();
+
+    hoverText = name + ": " + value;
+    hoveredKnob->setTooltip (hoverText);
 }
 
 void Ember175AudioProcessorEditor::timerCallback()
@@ -328,17 +323,17 @@ void Ember175AudioProcessorEditor::timerCallback()
     needleGr += (gr - needleGr) * 0.45f;
     needleLevel += (level - needleLevel) * 0.30f;
 
-    // lamp flickers with the amount of gain reduction
+    // lamp glows with the amount of gain reduction
     const float target = juce::jlimit (0.0f, 1.0f, gr / 8.0f);
     activity += (target - activity) * 0.35f;
 
-    refreshStatus();
+    if (hoveredKnob != nullptr)
+        refreshTooltip();
 
     if (++repaintDivider >= 2)
     {
         repaintDivider = 0;
-        repaint (place (layout.meter.expanded (4.0f)));
-        repaint (place ({ layout.lamp.x - 26.0f, layout.lamp.y - 26.0f, 52.0f, 52.0f }));
-        repaint (place (layout.statusLine.expanded (2.0f)));
+        repaint (place (layout.meter.expanded (6.0f)));
+        repaint (place ({ layout.lamp.x - 30.0f, layout.lamp.y - 30.0f, 60.0f, 60.0f }));
     }
 }

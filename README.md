@@ -25,9 +25,9 @@ calibration target. Everything below is implemented in `Source/EmberDSP.cpp`.
 | Gain element | 6BC8 remote-cutoff dual triode (variable mu) | gain law applied per sample, with the triode's grid curvature and an increasing bias-dependent distortion as gain reduction rises |
 | Sidechain detector | 6AL5 full-wave rectifier, feedback topology | rectifier + two-stage attack/release network that drives the gain element from the same node the audio passes through, closing the loop |
 | Ratio | fixed **12:1** at the threshold of limiting, **stiffening** above it | `u * (1 - 1/R(u))` with `R(u) = 12 + 0.4·u`, i.e. 12:1 at the knee, ~16:1 at +10 dB over, >30:1 at +20 dB over |
-| Attack | 100 µs … 1 ms, **clockwise = faster**, `OFF` detent | log taper, exactly 0.10–1.00 ms over the useful range, separate OFF position at the extreme |
-| Release | 27 … 527 ms, clockwise = faster | log taper, 27–527 ms end to end, plus the second (slow) capacitor that gives the unit its program-dependent recovery |
-| Input / Output | 0–40 dB stepped attenuators in 2 dB steps + vernier | 2 dB detents, `INPUT VERNIER` / `VERNIER` ±2 dB trims, switchable to continuous |
+| Attack | 100 µs … 1 ms, `OFF` detent | log taper printed `.1 .3 1`: the anti-clockwise end is 0.1 ms, the clockwise end 1 ms, with a separate OFF detent (the model's fastest setting is at the bottom of the dial, not at the top) |
+| Release | 27 … 527 ms | log taper printed `30 120 500`, 27–527 ms end to end, plus the second (slow) capacitor that gives the unit its program-dependent recovery |
+| Input / Output | 0–40 dB attenuators + vernier | 2 dB detents or continuous, printed −20 … +20 dB around unity, with a ±5 dB `VERNIER` on the input |
 | I/O | 600 Ω transformer balanced, UTC transformers | transformer model with LF core saturation, second-order asymmetry and DC blocking at both ends |
 | Amplifier | 12AX7 / 12BH7 gain stage | soft single-ended stage, unity gain at low level, gently louder harmonics as it is driven |
 | Meter | VU / gain reduction | large amber VU with mechanical needle ballistics, switchable to a GR reading |
@@ -79,38 +79,41 @@ unprocessed source (there is a test for it).
 
 The panel is drawn entirely in code (`Source/UI/PanelRenderer.cpp`) — no bitmaps,
 so it stays sharp at any window size and weighs nothing. It is laid out in a
-1200 × 360 design space that the editor scales uniformly into the window, so the
-proportions hold from 720 px wide up to full screen.
+1300 × 260 design space that the editor scales uniformly into the window (rack
+ears included), so the proportions hold from 650 px wide up to full screen.
 
-Left to right, one single row, exactly like the reference hardware:
+Left to right, one single row, matching the hardware:
 
 ```
-LOW/HI ─ S.C. LINK + lamp │ INPUT ⌀ · IMPEDANCE · VERNIER │ amber VU + brand │ ATTACK · OUTPUT · MIX · RELEASE · lamp + POWER
+LOW/HI | S.C. LINK + lamp | INPUT + IMPEDANCE + VERNIER | VU meter + brand | ATTACK + OUTPUT + MIX + RELEASE | lamp + POWER
 ```
 
-* dark oxblood panel with a fine brushed texture, cream silkscreen lettering and
-  thin hairline rules under the groups;
-* large **INPUT** and **OUTPUT** knobs in knurled brushed aluminium with a domed
-  centre cap and a white pointer; smaller machined dials for the rest, each with
-  its own printed tick ring and numbers;
-* a big amber, back-lit VU card under glass with a mechanical needle, the red
-  **+1 … +3** zone, `VU` and `dB` legends;
-* the `E` monogram above `EMBER 175 / TUBE COMPRESSOR` under the meter;
-* amber activity lamp next to `S.C. LINK`, red mains lamp next to `POWER`;
-* a small status line (GR, output level, attack and release in real units) at the
-  bottom right; hovering a knob shows that knob's own value there instead.
-
-Knobs respond to vertical drag, the mouse wheel and double-click to default.
-Right-click anywhere opens the setup menu.
+* brushed aluminium **rack ears** with oval mounting slots either side of the
+  oxblood case, slotted screws in the four corners, a thin copper trim line
+  around the face;
+* cream silkscreen lettering with a wide, engraved-style spacing, and hairline
+  rules under the brand block;
+* **INPUT** and **OUTPUT** as large dials with a knurled black skirt (96 flutes)
+  and a dark brushed-metal cap with a bright indicator line; the smaller dials
+  (LOW/HI, IMPEDANCE, VERNIER, ATTACK, MIX, RELEASE) share the same construction
+  at 55 % of the size. Numbers are printed outside a fine tick ring on every
+  dial, plus `600 / 300` and `-5 / +5` legends and an `OFF` detent for ATTACK;
+* a big **amber, back-lit VU card** in a bronze bezel with corner screws: a tick
+  per dB from −20 to +2 and numbers turned with the arc (−20, −10, −7, −5, −3,
+  −1, 0) as they are printed on a real VU card, a red **0 … +3** band, `VU` and
+  `dB` legends, a mechanical needle on a small hub;
+* the `E·B` monogram in a copper diamond above **EMBER 175 / TUBE COMPRESSOR**;
+* amber activity jewel next to `S.C. LINK`, red mains jewel next to `POWER`,
+  both behind brass ferrules;
+* hovering a knob shows its value in a tooltip; right-click anywhere opens the
+  setup menu.
 
 `Tools/UIPreview.cpp` renders the same panel to a PNG without a display, which is
 how `docs/panel-render.png` was produced (and how CI checks the layout). It draws
 the knobs through the same `PanelRenderer::paintKnobComponent` entry point the
-editor uses, so a placement regression shows up in CI as a visibly wrong panel. It also asserts,
-for several window sizes, that every knob lands inside the window; a failed
-check makes the CI render step exit non-zero.
-
----
+editor uses, and it asserts — for several window sizes — that every knob lands
+inside the window, so a placement regression fails CI instead of shipping a
+blank panel.
 
 ## 3. Build
 
@@ -165,7 +168,7 @@ cmake --build build --target render_panel
    pinned near the threshold under hard drive
 4. attack 100 µs … 1 ms and release 27 … 527 ms, measured on the gain-reduction
    trace (1 ms and 527 ms must be measurably slower than their fast
-   counterparts)
+   counterparts), plus the printed end-stops of both tapers
 5. `ATTACK = OFF` behaves as a pure tone box
 6. parallel mix at 0 % is bit-exact dry
 7. stereo link pulls a quiet channel down with a loud one, unlinked does not

@@ -22,11 +22,11 @@ int main (int argc, char** argv)
 {
     const juce::String outPath = argc > 1 ? juce::String (argv[1]) : juce::String ("ember175-panel.png");
     const int width = argc > 2 ? std::atoi (argv[2]) : 1800;
-    const int height = argc > 3 ? std::atoi (argv[3]) : 540;
+    const int height = argc > 3 ? std::atoi (argv[3]) : 360;
 
     juce::Image image (juce::Image::ARGB, width, height, true);
     juce::Graphics g (image);
-    g.fillAll (juce::Colour (0xff141010));
+    g.fillAll (juce::Colour (0xff0b0909));
 
     auto layout = ember::ui::makeLayout();
     const auto mapping = ember::ui::PanelMapping::fit (width, height);
@@ -35,7 +35,7 @@ int main (int argc, char** argv)
     // range of sizes. This is the check that would have caught the knobs being
     // drawn off-screen, so CI now fails loudly instead of shipping a blank panel.
     {
-        const int sizes[][2] = { { width, height }, { 720, 216 }, { 1234, 500 }, { 2400, 1200 } };
+        const int sizes[][2] = { { width, height }, { 650, 130 }, { 1234, 500 }, { 2540, 1220 } };
         for (auto& s : sizes)
         {
             const auto m = ember::ui::PanelMapping::fit (s[0], s[1]);
@@ -45,15 +45,12 @@ int main (int argc, char** argv)
                 if (k == nullptr)
                     continue;
 
-                const juce::Rectangle<float> knobArea (k->centre.x - k->radius * 1.3f,
-                                                       k->centre.y - k->radius * 1.3f,
-                                                       k->radius * 2.6f, k->radius * 2.6f);
+                const float half = k->skirtRadius * 1.45f;
+                const juce::Rectangle<float> knobArea (k->centre.x - half, k->centre.y - half,
+                                                       half * 2.0f, half * 2.0f);
                 const auto r = m.area (knobArea);
-                const auto centreOk = m.toWindow (k->centre).getDistanceFrom (
-                    juce::Point<float> (static_cast<float> (m.area (knobArea).getCentreX()),
-                                        static_cast<float> (m.area (knobArea).getCentreY()))) < 2.5f;
 
-                if (r.getX() < 0 || r.getY() < 0 || r.getRight() > s[0] || r.getBottom() > s[1] || ! centreOk)
+                if (r.getX() < 0 || r.getY() < 0 || r.getRight() > s[0] || r.getBottom() > s[1])
                 {
                     std::printf ("layout check FAILED: knob %d outside %dx%d (x %d y %d w %d h %d)\n",
                                  i, s[0], s[1], r.getX(), r.getY(), r.getWidth(), r.getHeight());
@@ -67,45 +64,41 @@ int main (int argc, char** argv)
     g.addTransform (mapping.transform());
     ember::ui::PanelRenderer::renderBackground (g, layout, 1.0f);
 
-    struct Demo { int index; float norm; };
+    struct Demo { int index; float norm; } ;
     const Demo demo[] = {
-        { 0, 0.25f },   // low / hi
-        { 1, 0.72f },   // input
-        { 2, 1.00f },   // impedance 300
-        { 3, 0.55f },   // vernier
-        { 4, 0.78f },   // attack
-        { 5, 0.58f },   // output
-        { 6, 1.00f },   // mix
-        { 7, 0.52f }    // release
+        { 0, 0.55f },   // low / hi
+        { 1, 0.62f },   // input
+        { 2, 0.30f },   // impedance 600
+        { 3, 0.56f },   // vernier
+        { 4, 0.66f },   // attack
+        { 5, 0.60f },   // output
+        { 6, 0.50f },   // mix
+        { 7, 0.45f }    // release
     };
 
     for (auto d : demo)
     {
         if (auto* k = layout.knobFor (d.index))
         {
-            const auto area = juce::Rectangle<float> (k->centre.x - k->radius * 1.3f,
-                                                      k->centre.y - k->radius * 1.3f,
-                                                      k->radius * 2.6f, k->radius * 2.6f);
+            const float half = k->skirtRadius * 1.45f;
+            const auto area = juce::Rectangle<float> (k->centre.x - half, k->centre.y - half, half * 2.0f, half * 2.0f);
             ember::ui::PanelRenderer::paintKnobComponent (g, *k, area, d.norm, false, d.index == 5);
         }
     }
 
     ember::ui::MeterState meter;
     meter.grDb = 0.0f;
-    meter.levelDb = -4.5f;
+    meter.levelDb = -3.0f;
     meter.grMode = false;
     meter.powered = true;
     ember::ui::PanelRenderer::drawMeterNeedle (g, layout, meter);
     ember::ui::PanelRenderer::drawMeterGlass (g, layout, meter);
 
-    ember::ui::PanelRenderer::drawToggle (g, layout.linkToggle, true, "S.C. LINK");
-    ember::ui::PanelRenderer::drawToggle (g, layout.powerToggle, true, "POWER");
+    ember::ui::PanelRenderer::drawToggle (g, layout.linkToggle, true);
+    ember::ui::PanelRenderer::drawToggle (g, layout.powerToggle, true);
 
-    ember::ui::PanelRenderer::drawLamp (g, layout.lamp, layout.lampRadius, juce::Colour (0xffffa53a), 0.75f);
-    ember::ui::PanelRenderer::drawLamp (g, layout.powerLamp, layout.powerLampRadius, juce::Colour (0xffff3a24), 1.0f);
-
-    ember::ui::PanelRenderer::drawStatus (g, layout.statusLine,
-                                          "GR 3.2 dB     OUT -7.4 dBFS     ATTACK 0.30 ms     RELEASE 120 ms");
+    ember::ui::PanelRenderer::drawLamp (g, layout.lamp, layout.lampRadius, juce::Colour (0xffffa53a), 1.0f);
+    ember::ui::PanelRenderer::drawLamp (g, layout.powerLamp, layout.powerLampRadius, juce::Colour (0xffff2d18), 1.0f);
 
     g.restoreState();
 

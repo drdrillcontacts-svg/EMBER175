@@ -35,16 +35,17 @@ namespace ember::ui
         static void paintKnobComponent (juce::Graphics&, const KnobSpec&, juce::Rectangle<float> localArea,
                                         float normalised, bool highlighted = false, bool dragging = false);
 
-        static void drawToggle (juce::Graphics&, juce::Rectangle<float> area, bool on,
-                                const juce::String& label, bool showLabel = true);
+        /** Redraws the printed tick ring under a knob, for when a knob component
+            paints its own background. */
+        static void drawKnobScale (juce::Graphics&, const KnobSpec&);
+
+        static void drawToggle (juce::Graphics&, juce::Rectangle<float> area, bool on);
 
         static void drawLamp (juce::Graphics&, juce::Point<float> centre, float radius,
                               juce::Colour colour, float glow);
 
         static void drawMeterNeedle (juce::Graphics&, const PanelLayout&, const MeterState&);
         static void drawMeterGlass (juce::Graphics&, const PanelLayout&, const MeterState&);
-
-        static void drawStatus (juce::Graphics&, juce::Rectangle<float> area, const juce::String& text);
 
         static juce::Font panelFont (float height, bool bold = true, float kerning = 0.2f);
 

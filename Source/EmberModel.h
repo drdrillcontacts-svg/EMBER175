@@ -28,7 +28,7 @@ namespace model
     constexpr float kInputMaxDb      = 40.0f;
     constexpr float kOutputMinDb     = 0.0f;
     constexpr float kOutputMaxDb     = 40.0f;
-    constexpr float kVernierDb       = 2.0f;    // hardware vernier trim, +/- 2 dB
+    constexpr float kVernierDb       = 5.0f;    // vernier trim, printed +/- 5 dB
     constexpr float kGrVernierDb     = 6.0f;    // G/R vernier: threshold calibration
     constexpr float kAttackMinMs     = 0.1f;
     constexpr float kAttackMaxMs     = 1.0f;
@@ -77,9 +77,9 @@ namespace model
         return 20.0f * std::log10 (gain > 1.0e-9f ? gain : 1.0e-9f);
     }
 
-    // Attack and release are printed clockwise = faster, so the UI taper is
-    // inverted with respect to the time in milliseconds. The attack knob has an
-    // OFF detent at the extreme anticlockwise position, as on the hardware.
+    // Both time knobs read left to right as slower: the dials are printed
+    // ".1 .3 1" and "30 120 500", and the attack knob has an OFF detent at the
+    // extreme anticlockwise position.
     constexpr float kAttackOffNorm = 0.06f;
 
     inline float attackNormToMs (float normalised) noexcept
@@ -88,7 +88,7 @@ namespace model
         if (n <= kAttackOffNorm)
             return kAttackOffMs;
         const float t = (n - kAttackOffNorm) / (1.0f - kAttackOffNorm);
-        return kAttackMaxMs * std::pow (kAttackMinMs / kAttackMaxMs, t);
+        return kAttackMinMs * std::pow (kAttackMaxMs / kAttackMinMs, t);
     }
 
     inline float attackMsToNorm (float ms) noexcept
@@ -96,7 +96,7 @@ namespace model
         if (ms <= kAttackOffMs)
             return 0.0f;
         const float t = ms < kAttackMinMs ? kAttackMinMs : (ms > kAttackMaxMs ? kAttackMaxMs : ms);
-        const float n = std::log (t / kAttackMaxMs) / std::log (kAttackMinMs / kAttackMaxMs);
+        const float n = std::log (t / kAttackMinMs) / std::log (kAttackMaxMs / kAttackMinMs);
         return kAttackOffNorm + n * (1.0f - kAttackOffNorm);
     }
 

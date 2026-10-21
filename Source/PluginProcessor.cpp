@@ -28,13 +28,13 @@ Ember175AudioProcessor::APVTS::ParameterLayout Ember175AudioProcessor::createPar
         juce::ParameterID { "input", 1 }, "Input",
         R (ember::model::kInputMinDb, ember::model::kInputMaxDb, 0.1f), 20.0f,
         juce::AudioParameterFloatAttributes().withLabel ("dB").withStringFromValueFunction (
-            [] (float v, int) { return dbText (v); })));
+            [] (float v, int) { return dbText (v - 20.0f); })));
 
     l.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "output", 1 }, "Output",
         R (ember::model::kOutputMinDb, ember::model::kOutputMaxDb, 0.1f), 20.0f,
         juce::AudioParameterFloatAttributes().withLabel ("dB").withStringFromValueFunction (
-            [] (float v, int) { return dbText (v); })));
+            [] (float v, int) { return dbText (v - 20.0f); })));
 
     l.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "attack", 1 }, "Attack",
@@ -53,9 +53,9 @@ Ember175AudioProcessor::APVTS::ParameterLayout Ember175AudioProcessor::createPar
         juce::AudioParameterFloatAttributes().withStringFromValueFunction (
             [] (float v, int) { return juce::String (ember::model::releaseFromNorm (v), 0) + " ms"; })));
 
-    // input vernier, printed +/- 2 dB around the input knob
+    // vernier, printed +/- 5 dB around the input knob
     l.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "vernier", 1 }, "Input Vernier",
+        juce::ParameterID { "vernier", 1 }, "Vernier",
         R (-ember::model::kVernierDb, ember::model::kVernierDb, 0.05f), 0.0f,
         juce::AudioParameterFloatAttributes().withStringFromValueFunction (
             [] (float v, int) { return dbText (v); })));

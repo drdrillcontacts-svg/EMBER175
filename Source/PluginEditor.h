@@ -6,11 +6,15 @@
 #include "UI/PanelRenderer.h"
 
 //==============================================================================
-/** A rotary control that paints itself as one of the panel knobs. */
-class PanelKnob final : public juce::Slider
+/** A rotary control that paints itself as one of the front panel knobs.
+
+    The printed scale, caption and the knob body are all drawn by the shared
+    renderer, so the editor and the headless preview cannot drift apart. */
+class PanelKnob : public juce::Slider
 {
 public:
-    PanelKnob (ember::ui::KnobSpec spec, const juce::String& paramId, double minValue, double maxValue);
+    PanelKnob (ember::ui::KnobSpec spec, const juce::String& paramId,
+               double minValue, double maxValue, double scaleForDisplay = 1.0);
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -19,6 +23,7 @@ public:
 
     const juce::String& getParamId() const noexcept { return paramId; }
     const ember::ui::KnobSpec& getSpec() const noexcept { return spec; }
+
     float getNormalised() const noexcept;
 
     std::function<void (PanelKnob*)> onHover;
@@ -27,13 +32,14 @@ public:
 private:
     ember::ui::KnobSpec spec;
     juce::String paramId;
+    double displayOffset = 0.0;
     bool hovered = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PanelKnob)
 };
 
 //==============================================================================
-/** Bat-handle toggle used for S.C. LINK and POWER. */
+/** Hex bat-handle toggle used for S.C. LINK and POWER. */
 class PanelToggle final : public juce::Button
 {
 public:
@@ -67,7 +73,7 @@ private:
     void showSetupMenu (juce::Point<int> screenPosition);
     juce::Rectangle<int> place (juce::Rectangle<float> designArea) const;
     void attachKnob (int layoutIndex, const char* paramId, double min, double max);
-    void refreshStatus();
+    void refreshTooltip();
 
     Ember175AudioProcessor& processor;
     ember::ui::PanelLayout layout;
@@ -80,8 +86,9 @@ private:
     PanelToggle powerButton { "POWER", "power" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> linkAtt, powerAtt;
 
-    juce::String statusText { "GR 0.0 dB     OUT -inf dBFS" };
     PanelKnob* hoveredKnob = nullptr;
+    juce::String hoverText;
+    juce::TooltipWindow tooltip { this, 700 };
 
     float needleGr = 0.0f, needleLevel = -100.0f;
     float activity = 0.0f;

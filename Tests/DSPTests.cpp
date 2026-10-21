@@ -496,8 +496,10 @@ int main (int argc, char** argv)
     {
         std::printf ("\n[9] parameter ranges\n");
         check (ember::model::attackNormToMs (0.0f) == 0.0f, "attack at minimum is the OFF position");
-        check (ember::model::attackNormToMs (1.0f) > 0.09f && ember::model::attackNormToMs (1.0f) < 0.11f,
-               "attack fully clockwise is 100 us");
+        check (ember::model::attackNormToMs (1.0f) > 0.95f && ember::model::attackNormToMs (1.0f) < 1.05f,
+               "attack fully clockwise is 1 ms, as printed on the dial");
+        check (ember::model::attackNormToMs (ember::model::kAttackOffNorm + 0.001f) < 0.11f,
+               "just off the OFF detent the attack is 100 us");
         const float mid = ember::model::attackMsToNorm (0.3f);
         check (ember::model::attackNormToMs (mid) > 0.28f && ember::model::attackNormToMs (mid) < 0.32f,
                "attack taper round trips");
