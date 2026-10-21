@@ -2,6 +2,9 @@
 
 ![front panel](docs/panel-render.png)
 
+Reference panel (above) and the rendered plug-in panel (below):
+![reference and render](docs/panel-comparison.png)
+
 An independent, from-scratch VST3/AU re-creation of a **tube variable-mu limiting
 amplifier in the spirit of the Universal Audio 175-B**: the same control set, the
 same stepped attenuator feel, the same feedback gain-reduction behaviour (soft at
