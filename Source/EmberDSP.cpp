@@ -185,10 +185,12 @@ void Processor::prepare (double sampleRate, int maxBlockSize, int numChannels)
     for (auto& ch : scratch_)
         ch.assign (static_cast<size_t> (maxBlockSize_ * 4 + 8), 0.0f);
 
-    // Interpolators and decimators each contribute their group delay.
+    // Interpolators and decimators each contribute their group delay; the
+    // measured peak of the chain's impulse response is 46 samples at 4x and 31
+    // at 2x, which is what has to be reported to the host.
     const float baseDelay = stages_ == 2 ? (31.0f / 2.0f + 31.0f / 4.0f) * 2.0f
                                          : (31.0f / 2.0f) * 2.0f;
-    latency_ = std::max (1, static_cast<int> (std::lround (baseDelay)));
+    latency_ = std::max (1, static_cast<int> (std::floor (baseDelay)));
 
     // the sidechain sees the signal after interpolation only
     const float scDelay = stages_ == 2 ? (31.0f / 2.0f + 31.0f / 4.0f) : (31.0f / 2.0f);

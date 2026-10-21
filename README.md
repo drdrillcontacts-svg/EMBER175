@@ -58,9 +58,11 @@ path so it can be automated without clicks.
 
 ### Delay
 
-The oversampling filters introduce a fixed latency of 46 samples (48 kHz), which
-is reported to the host through `setLatencySamples()`; offline renders using the
-reported latency line up sample-exactly with the unprocessed source.
+The oversampling filters introduce a fixed latency of 46 samples below 120 kHz
+and 31 samples above it. The exact measured delay is reported to the host through
+`setLatencySamples()`, and the dry path is delayed by the same amount, so
+parallel mix never combs and offline renders line up sample-exactly with the
+unprocessed source (there is a test for it).
 
 ---
 

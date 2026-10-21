@@ -168,6 +168,32 @@ int main (int argc, char** argv)
         }
         check (transparent, "bypass is bit transparent (delayed by the reported latency)");
 
+        // the reported latency must equal the real delay of the processed path,
+        // otherwise the dry/wet mix would comb and the host would mis-align
+        {
+            ember::Processor wet;
+            wet.prepare (48000.0, 256, 1);
+            std::vector<float> impulse (512, 0.0f);
+            impulse[64] = 0.5f;
+            ember::Parameters q;
+            q.inputDb = 20.0f;
+            q.outputDb = 20.0f;
+            q.attackMs = 0.0f;              // no limiting: measure the chain only
+            float* ptrs[1] { impulse.data() };
+            wet.process (ptrs, 1, static_cast<int> (impulse.size()), q);
+
+            int peak = 0;
+            float peakValue = 0.0f;
+            for (int i = 0; i < static_cast<int> (impulse.size()); ++i)
+                if (std::abs (impulse[static_cast<size_t> (i)]) > std::abs (peakValue))
+                {
+                    peakValue = impulse[static_cast<size_t> (i)];
+                    peak = i;
+                }
+            checkNear (peak - 64, wet.latencySamples(), 0.51,
+                       "reported latency matches the measured delay of the chain");
+        }
+
         // unity gain with no limiting: a quiet tone must pass untouched
         proc.reset();
         p.bypass = false;
