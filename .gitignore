@@ -1,0 +1,25 @@
+# build trees
+build/
+build-*/
+cmake-build-*/
+out/
+stage/
+
+# JUCE / IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+
+# rendered previews (regenerate with the render_panel target)
+ember175-panel.png
+*.vst3
+*.component
+*.zip
+
+# local reference captures, never committed (use external storage)
+reference/
+Reference/
+captures/

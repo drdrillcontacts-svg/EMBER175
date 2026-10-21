@@ -1,78 +1,169 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+    juce::String dbText (float value)
+    {
+        return (value > 0.0f ? "+" : "") + juce::String (value, 1);
+    }
+}
+
 Ember175AudioProcessor::Ember175AudioProcessor()
-    : AudioProcessor(BusesProperties()
-        .withInput("Input", juce::AudioChannelSet::stereo(), true)
-        .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-      parameters(*this, nullptr, "PARAMETERS", createParameterLayout())
+    : AudioProcessor (BusesProperties()
+                          .withInput ("Input", juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      parameters (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
 }
 
 Ember175AudioProcessor::APVTS::ParameterLayout Ember175AudioProcessor::createParameterLayout()
 {
+    using R = juce::NormalisableRange<float>;
     APVTS::ParameterLayout l;
-    l.add(std::make_unique<juce::AudioParameterFloat>("input", "Input", juce::NormalisableRange<float>(-24, 24, 0.1f), 0.0f, "dB"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("output", "Output", juce::NormalisableRange<float>(-24, 24, 0.1f), 0.0f, "dB"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("threshold", "Threshold", juce::NormalisableRange<float>(-48, 0, 0.1f), -18.0f, "dB"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("attack", "Attack", juce::NormalisableRange<float>(0.1f, 100.0f, 0.1f, 0.45f), 2.0f, "ms"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("release", "Release", juce::NormalisableRange<float>(5.0f, 2000.0f, 1.0f, 0.45f), 120.0f, "ms"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("headroom", "Headroom", juce::NormalisableRange<float>(-12, 12, 0.1f), 0.0f, "dB"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("mix", "Dry / Wet", juce::NormalisableRange<float>(0, 100, 0.1f), 100.0f, "%"));
-    l.add(std::make_unique<juce::AudioParameterFloat>("color", "Color", juce::NormalisableRange<float>(0, 100, 0.1f), 15.0f, "%"));
-    l.add(std::make_unique<juce::AudioParameterBool>("bypass", "Bypass", false));
-    l.add(std::make_unique<juce::AudioParameterBool>("stereoLink", "Stereo Link", true));
+
+    // ---------------------------------------------------------------- front panel
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "input", 1 }, "Input",
+        R (ember::model::kInputMinDb, ember::model::kInputMaxDb, ember::model::kStepDb), 20.0f,
+        juce::AudioParameterFloatAttributes().withLabel ("dB").withStringFromValueFunction (
+            [] (float v, int) { return dbText (v); })));
+
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "output", 1 }, "Output",
+        R (ember::model::kOutputMinDb, ember::model::kOutputMaxDb, ember::model::kStepDb), 20.0f,
+        juce::AudioParameterFloatAttributes().withLabel ("dB").withStringFromValueFunction (
+            [] (float v, int) { return dbText (v); })));
+
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "attack", 1 }, "Attack",
+        R (0.0f, 1.0f, 0.0001f), ember::model::attackMsToNorm (0.3f),
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) {
+                const float ms = ember::model::attackNormToMs (v);
+                return ms <= 0.0f ? juce::String ("OFF") + " "
+                                  : (ms < 0.1f ? juce::String (ms * 1000.0f, 0)
+                                               : juce::String (ms, 2)) + " ms";
+            })));
+
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "release", 1 }, "Release",
+        R (0.0f, 1.0f, 0.0001f), ember::model::releaseToNorm (120.0f),
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) { return juce::String (ember::model::releaseFromNorm (v), 0) + " ms"; })));
+
+    // verniers
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "inputTrim", 1 }, "Input Vernier",
+        R (-ember::model::kVernierDb, ember::model::kVernierDb, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) { return dbText (v); })));
+
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "outputTrim", 1 }, "Output Vernier",
+        R (-ember::model::kVernierDb, ember::model::kVernierDb, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) { return dbText (v); })));
+
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "grTrim", 1 }, "G/R Vernier",
+        R (-ember::model::kGrVernierDb, ember::model::kGrVernierDb, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) { return dbText (v); })));
+
+    // ------------------------------------------------------------- extended controls
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "mix", 1 }, "Parallel Mix",
+        R (0.0f, 100.0f, 0.1f), 100.0f,
+        juce::AudioParameterFloatAttributes().withLabel ("%").withStringFromValueFunction (
+            [] (float v, int) { return juce::String (v, 0) + " %"; })));
+
+    l.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "headroom", 1 }, "Headroom",
+        R (ember::model::kHeadroomMinDb, ember::model::kHeadroomMaxDb, 0.5f), 0.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [] (float v, int) { return dbText (v); })));
+
+    l.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "stereoLink", 1 }, "Stereo Link", true));
+    l.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "continuous", 1 }, "Continuous Attenuators", false));
+    l.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "grMeterMode", 1 }, "Meter Shows Gain Reduction", true));
+    l.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "power", 1 }, "Power", true));
+
     return l;
 }
 
-void Ember175AudioProcessor::prepareToPlay(double sr, int block)
+void Ember175AudioProcessor::prepareToPlay (double sampleRate, int blockSize)
 {
-    dsp.prepare(sr, block, getTotalNumOutputChannels());
+    dsp.prepare (sampleRate, blockSize, juce::jmax (1, getTotalNumOutputChannels()));
+    setLatencySamples (dsp.latencySamples());
 }
-void Ember175AudioProcessor::releaseResources() { dsp.reset(); }
 
-bool Ember175AudioProcessor::isBusesLayoutSupported(const BusesLayout& b) const
+void Ember175AudioProcessor::releaseResources()
 {
-    const auto in = b.getMainInputChannelSet();
-    const auto out = b.getMainOutputChannelSet();
+    dsp.reset();
+}
+
+bool Ember175AudioProcessor::isBusesLayoutSupported (const BusesLayout& layout) const
+{
+    const auto in = layout.getMainInputChannelSet();
+    const auto out = layout.getMainOutputChannelSet();
     return in == out && (in == juce::AudioChannelSet::mono() || in == juce::AudioChannelSet::stereo());
 }
 
-void Ember175AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void Ember175AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    const int ins = getTotalNumInputChannels();
-    const int outs = getTotalNumOutputChannels();
-    for (int ch = ins; ch < outs; ++ch) buffer.clear(ch, 0, buffer.getNumSamples());
+
+    const int numIn = getTotalNumInputChannels();
+    const int numOut = getTotalNumOutputChannels();
+    for (int ch = numIn; ch < numOut; ++ch)
+        buffer.clear (ch, 0, buffer.getNumSamples());
 
     ember::Parameters p;
-    p.inputDb = parameters.getRawParameterValue("input")->load();
-    p.outputDb = parameters.getRawParameterValue("output")->load();
-    p.thresholdDb = parameters.getRawParameterValue("threshold")->load();
-    p.attackMs = parameters.getRawParameterValue("attack")->load();
-    p.releaseMs = parameters.getRawParameterValue("release")->load();
-    p.headroomDb = parameters.getRawParameterValue("headroom")->load();
-    p.mix = parameters.getRawParameterValue("mix")->load() / 100.0f;
-    p.color = parameters.getRawParameterValue("color")->load() / 100.0f;
-    p.bypass = parameters.getRawParameterValue("bypass")->load() > 0.5f;
-    p.stereoLink = parameters.getRawParameterValue("stereoLink")->load() > 0.5f;
+    p.inputDb      = read ("input");
+    p.inputTrimDb  = read ("inputTrim");
+    p.outputDb     = read ("output");
+    p.outputTrimDb = read ("outputTrim");
+    p.grTrimDb     = read ("grTrim");
+    p.attackMs     = ember::model::attackNormToMs (read ("attack"));
+    p.releaseMs    = ember::model::releaseFromNorm (read ("release"));
+    p.headroomDb   = read ("headroom");
+    p.mix          = read ("mix") * 0.01f;
+    p.stereoLink   = read ("stereoLink") > 0.5f;
+    p.bypass       = read ("power") < 0.5f;
 
-    float* ptrs[2] { buffer.getWritePointer(0), nullptr };
-    if (outs > 1) ptrs[1] = buffer.getWritePointer(1);
-    dsp.process(ptrs, outs, buffer.getNumSamples(), p);
+    float* ptrs[2] { nullptr, nullptr };
+    const int num = juce::jmin (2, numOut);
+    for (int ch = 0; ch < num; ++ch)
+        ptrs[ch] = buffer.getWritePointer (ch);
+
+    dsp.process (ptrs, num, buffer.getNumSamples(), p);
+
+    grMeter.store (dsp.gainReductionDb());
+    outMeter.store (dsp.outputLevelDb());
 }
 
-juce::AudioProcessorEditor* Ember175AudioProcessor::createEditor() { return new Ember175AudioProcessorEditor(*this); }
-
-void Ember175AudioProcessor::getStateInformation(juce::MemoryBlock& dest)
+juce::AudioProcessorEditor* Ember175AudioProcessor::createEditor()
 {
-    std::unique_ptr<juce::XmlElement> xml(parameters.copyState().createXml());
-    copyXmlToBinary(*xml, dest);
+    return new Ember175AudioProcessorEditor (*this);
 }
-void Ember175AudioProcessor::setStateInformation(const void* data, int size)
+
+void Ember175AudioProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
-    std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, size));
-    if (xml && xml->hasTagName(parameters.state.getType()))
-        parameters.replaceState(juce::ValueTree::fromXml(*xml));
+    auto state = parameters.copyState();
+    state.setProperty ("version", 1, nullptr);
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    copyXmlToBinary (*xml, dest);
 }
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new Ember175AudioProcessor(); }
+
+void Ember175AudioProcessor::setStateInformation (const void* data, int size)
+{
+    std::unique_ptr<juce::XmlElement> xml (getXmlFromBinary (data, size));
+    if (xml != nullptr && xml->hasTagName (parameters.state.getType()))
+        parameters.replaceState (juce::ValueTree::fromXml (*xml));
+}
+
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new Ember175AudioProcessor();
+}

@@ -1,186 +1,258 @@
 #include "PluginEditor.h"
 
-namespace
+using namespace ember::ui;
+
+//==============================================================================
+PanelKnob::PanelKnob (KnobSpec s, const juce::String& id)
+    : spec (s), paramId (id)
 {
-    const juce::Colour bg        { 0xff111110 };
-    const juce::Colour panel     { 0xff201e1a };
-    const juce::Colour panelHi   { 0xff2b2721 };
-    const juce::Colour brass     { 0xffc18b4a };
-    const juce::Colour brassLite { 0xfff0cf98 };
-    const juce::Colour cream     { 0xffeee4d3 };
-    const juce::Colour muted     { 0xffa99a84 };
+    setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    setRotaryParameters (0.0f, juce::MathConstants<float>::twoPi, false);
+    setVelocityBasedMode (false);
+    setMouseDragSensitivity (spec.style == KnobStyle::large ? 260 : 190);
+    setWantsKeyboardFocus (false);
+    setOpaque (false);
 }
 
-Ember175AudioProcessorEditor::Ember175AudioProcessorEditor(Ember175AudioProcessor& p)
-    : AudioProcessorEditor(&p), processor(p)
+void PanelKnob::paint (juce::Graphics& g)
 {
-    setSize(900, 620);
-    setResizable(true, true);
-    setResizeLimits(780, 560, 1200, 820);
+    juce::Graphics::ScopedSaveState state (g);
 
-    title.setText("EMBER 175", juce::dontSendNotification);
-    title.setFont(juce::Font(juce::FontOptions(32.0f, juce::Font::bold)));
-    title.setColour(juce::Label::textColourId, brassLite);
-    title.setJustificationType(juce::Justification::centredLeft);
-    addAndMakeVisible(title);
+    // the bounds are centred on the hardware knob position, so map design units
+    // straight onto the component with a uniform scale
+    const float px = static_cast<float> (getHeight()) / (spec.radius * 2.6f);
+    const auto centre = getLocalBounds().toFloat().getCentre();
+    g.addTransform (juce::AffineTransform::translation (centre.x - spec.centre.x * px,
+                                                       centre.y - spec.centre.y * px).scaled (px));
 
-    subtitle.setText("TUBE DYNAMICS  /  REFERENCE LAB", juce::dontSendNotification);
-    subtitle.setColour(juce::Label::textColourId, muted);
-    subtitle.setFont(juce::Font(juce::FontOptions(11.0f)));
-    subtitle.setJustificationType(juce::Justification::centredLeft);
-    addAndMakeVisible(subtitle);
+    const float norm = static_cast<float> ((getValue() - getMinimum()) / (getMaximum() - getMinimum()));
+    PanelRenderer::drawKnob (g, spec, norm, hovered, isMouseButtonDown());
+}
 
-    setupSlider(input, "INPUT", "input");
-    setupSlider(threshold, "THRESHOLD", "threshold");
-    setupSlider(attack, "ATTACK", "attack");
-    setupSlider(release, "RELEASE", "release");
-    setupSlider(headroom, "HEADROOM", "headroom");
-    setupSlider(color, "TUBE COLOR", "color");
-    setupSlider(mix, "DRY / WET", "mix");
-    setupSlider(output, "OUTPUT", "output");
+void PanelKnob::mouseEnter (const juce::MouseEvent& e)
+{
+    hovered = true;
+    repaint();
+    if (onHover != nullptr)
+        onHover (this);
+    juce::Slider::mouseEnter (e);
+}
 
-    bypass.setButtonText("BYPASS");
-    stereoLink.setButtonText("STEREO LINK");
-    for (auto* b : { &bypass, &stereoLink })
+void PanelKnob::mouseExit (const juce::MouseEvent& e)
+{
+    hovered = false;
+    repaint();
+    if (onHover != nullptr)
+        onHover (nullptr);
+    juce::Slider::mouseExit (e);
+}
+
+juce::String PanelKnob::getDisplayValue()
+{
+    return getTextFromValue (getValue());
+}
+
+//==============================================================================
+PanelToggle::PanelToggle (const juce::String& text, Style s)
+    : juce::Button (text), style (s)
+{
+    setClickingTogglesState (true);
+    setWantsKeyboardFocus (false);
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+}
+
+void PanelToggle::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    auto area = getLocalBounds().toFloat();
+    const bool on = getToggleState();
+
+    if (style == Style::power)
     {
-        b->setColour(juce::ToggleButton::textColourId, cream);
-        b->setColour(juce::ToggleButton::tickColourId, brass);
-        b->setColour(juce::ToggleButton::tickDisabledColourId, muted);
-        addAndMakeVisible(*b);
+        PanelRenderer::drawToggle (g, area, on, getButtonText(), true);
+        return;
     }
-    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.parameters, "bypass", bypass);
-    linkAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.parameters, "stereoLink", stereoLink);
 
-    meterLabel.setColour(juce::Label::textColourId, brassLite);
-    meterLabel.setFont(juce::Font(juce::FontOptions(13.0f, juce::Font::bold)));
-    meterLabel.setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(meterLabel);
-
-    footerLabel.setText("INDEPENDENT DSP RESEARCH BUILD  •  NOT AFFILIATED WITH UNIVERSAL AUDIO", juce::dontSendNotification);
-    footerLabel.setColour(juce::Label::textColourId, muted);
-    footerLabel.setFont(juce::Font(juce::FontOptions(9.5f)));
-    footerLabel.setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(footerLabel);
-    startTimerHz(20);
-}
-
-void Ember175AudioProcessorEditor::setupSlider(juce::Slider& s, const juce::String& labelText, const juce::String& id)
-{
-    s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 76, 22);
-    s.setRotaryParameters(juce::MathConstants<float>::pi * 1.25f,
-                          juce::MathConstants<float>::pi * 2.75f, true);
-    s.setColour(juce::Slider::rotarySliderFillColourId, brass);
-    s.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff51483b));
-    s.setColour(juce::Slider::thumbColourId, brassLite);
-    s.setColour(juce::Slider::textBoxTextColourId, cream);
-    s.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff171614));
-    s.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff51483b));
-    addAndMakeVisible(s);
-
-    auto l = std::make_unique<juce::Label>();
-    l->setText(labelText, juce::dontSendNotification);
-    l->setColour(juce::Label::textColourId, muted);
-    l->setJustificationType(juce::Justification::centred);
-    l->setFont(juce::Font(juce::FontOptions(10.5f, juce::Font::bold)));
-    addAndMakeVisible(*l);
-    labels.push_back(std::move(l));
-    attachments.push_back(std::make_unique<Attachment>(processor.parameters, id, s));
-}
-
-void Ember175AudioProcessorEditor::paint(juce::Graphics& g)
-{
-    g.fillAll(bg);
-    const auto bounds = getLocalBounds().toFloat().reduced(10.0f);
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff30281f), bounds.getX(), bounds.getY(),
-                                           juce::Colour(0xff171614), bounds.getRight(), bounds.getBottom(), false));
-    g.fillRoundedRectangle(bounds, 18.0f);
-    g.setColour(juce::Colour(0xff675039));
-    g.drawRoundedRectangle(bounds, 18.0f, 1.2f);
-
-    // Header plaque and divider
-    g.setColour(brass);
-    g.fillRoundedRectangle(28.0f, 29.0f, 4.0f, 52.0f, 2.0f);
-    g.setColour(juce::Colour(0xff51402d));
-    g.drawLine(28.0f, 96.0f, (float)getWidth() - 28.0f, 96.0f, 1.0f);
-
-    // Main control deck
-    auto deck = juce::Rectangle<float>(28.0f, 112.0f, (float)getWidth() - 56.0f, (float)getHeight() - 254.0f);
-    g.setColour(panel);
-    g.fillRoundedRectangle(deck, 13.0f);
-    g.setColour(juce::Colour(0xff4b3d2d));
-    g.drawRoundedRectangle(deck, 13.0f, 1.0f);
-
-    // Subtle divider between the two rows of controls
-    g.setColour(juce::Colour(0xff3b3126));
-    g.drawLine(deck.getX() + 18.0f, deck.getCentreY(), deck.getRight() - 18.0f, deck.getCentreY(), 1.0f);
-
-    // Bottom meter bay
-    const float bayY = (float)getHeight() - 82.0f;
-    g.setColour(juce::Colour(0xff181715));
-    g.fillRoundedRectangle(28.0f, bayY, (float)getWidth() - 56.0f, 42.0f, 8.0f);
-    g.setColour(juce::Colour(0xff4b3d2d));
-    g.drawRoundedRectangle(28.0f, bayY, (float)getWidth() - 56.0f, 42.0f, 8.0f, 1.0f);
-
-    const float meterX = (float)getWidth() * 0.50f;
-    const float meterY = bayY + 12.0f;
-    const float meterW = (float)getWidth() * 0.25f;
-    const float meterH = 12.0f;
-    g.setColour(juce::Colour(0xff39342d));
-    g.fillRoundedRectangle(meterX, meterY, meterW, meterH, 3.0f);
-    const float gr = juce::jlimit(0.0f, 18.0f, processor.getGainReductionDb());
-    const float fillW = meterW * gr / 18.0f;
-    g.setColour(gr > 12.0f ? juce::Colour(0xffc86d45) : brass);
-    if (fillW > 0.0f)
-        g.fillRoundedRectangle(meterX, meterY, fillW, meterH, 3.0f);
-    g.setColour(muted);
-    g.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
-    g.drawText("GR", meterX - 29.0f, meterY - 1.0f, 23.0f, 14.0f, juce::Justification::centredLeft);
-
-    // Decorative corner screws
-    g.setColour(juce::Colour(0xff7a6a53));
-    for (auto pt : { juce::Point<float>(22, 22), juce::Point<float>((float)getWidth() - 22, 22),
-                     juce::Point<float>(22, (float)getHeight() - 22),
-                     juce::Point<float>((float)getWidth() - 22, (float)getHeight() - 22) })
+    if (highlighted || down)
     {
-        g.fillEllipse(pt.x - 3.0f, pt.y - 3.0f, 6.0f, 6.0f);
-        g.setColour(juce::Colour(0xff29241e));
-        g.drawLine(pt.x - 2.0f, pt.y, pt.x + 2.0f, pt.y, 1.0f);
-        g.setColour(juce::Colour(0xff7a6a53));
+        g.setColour (PanelRenderer::brass().withAlpha (down ? 0.20f : 0.10f));
+        g.fillRoundedRectangle (area, 5.0f);
     }
+
+    PanelRenderer::drawToggle (g, area, on, getButtonText(), false);
+}
+
+juce::Rectangle<float> PanelToggle::getIndicatorArea() const
+{
+    return getLocalBounds().toFloat();
+}
+
+//==============================================================================
+Ember175AudioProcessorEditor::Ember175AudioProcessorEditor (Ember175AudioProcessor& p)
+    : AudioProcessorEditor (&p), processor (p), layout (makeLayout())
+{
+    setOpaque (true);
+    setResizable (true, true);
+    setResizeLimits (900, 450, 1920, 960);
+    getConstrainer()->setFixedAspectRatio (kDesignWidth / kDesignHeight);
+    setSize (1200, 600);
+
+    struct Binding { int index; const char* id; };
+    const Binding bindings[] = {
+        { 0, "input" }, { 1, "output" }, { 2, "attack" }, { 3, "release" },
+        { 4, "inputTrim" }, { 5, "outputTrim" }, { 6, "grTrim" },
+        { 7, "mix" }, { 8, "headroom" }
+    };
+
+    for (auto& b : bindings)
+    {
+        if (auto* spec = layout.knobFor (b.index))
+        {
+            auto knob = std::make_unique<PanelKnob> (*spec, b.id);
+            knob->onHover = [this] (PanelKnob* k) { setHovered (k); };
+            addAndMakeVisible (*knob);
+            knobAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                processor.parameters, b.id, *knob));
+            knobs.push_back (std::move (knob));
+        }
+    }
+
+    for (auto* b : { &linkButton, &continuousButton, &meterButton, &powerButton })
+    {
+        b->setColour (juce::Label::textColourId, PanelRenderer::print());
+        addAndMakeVisible (*b);
+    }
+
+    linkAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        processor.parameters, "stereoLink", linkButton);
+    contAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        processor.parameters, "continuous", continuousButton);
+    meterAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        processor.parameters, "grMeterMode", meterButton);
+    powerAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        processor.parameters, "power", powerButton);
+
+    // double click a knob to return to its default, and refresh the readout while
+    // dragging
+    for (auto& k : knobs)
+    {
+        if (auto* param = processor.parameters.getParameter (k->getParamId()))
+            k->setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
+
+        k->onValueChange = [this, raw = k.get()] { setHovered (raw); };
+    }
+
+    powerButton.onStateChange = [this] { repaint(); };
+    linkButton.onStateChange = [this] { repaint(); };
+    meterButton.onStateChange = [this]
+    {
+        needleGr = needleLevel = -100.0f;
+        repaint();
+    };
+
+    startTimerHz (30);
+}
+
+Ember175AudioProcessorEditor::~Ember175AudioProcessorEditor()
+{
+    stopTimer();
+    for (auto& k : knobs)
+        k->onValueChange = nullptr;
+}
+
+void Ember175AudioProcessorEditor::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colour (0xff151312));
+
+    juce::Graphics::ScopedSaveState state (g);
+    g.addTransform (juce::AffineTransform::translation (origin.x, origin.y));
+    PanelRenderer::renderBackground (g, layout, currentScale);
+
+    // meter: needle is animated by the timer, the glass is static
+    MeterState m;
+    m.grDb = needleGr;
+    m.levelDb = needleLevel;
+    m.grMode = processor.read ("grMeterMode") > 0.5f;
+    m.powered = processor.read ("power") > 0.5f;
+    m.limiting = m.grDb > 0.15f;
+    PanelRenderer::drawMeterNeedle (g, layout, m);
+    PanelRenderer::drawMeterGlass (g, layout, m);
+
+    PanelRenderer::drawReadout (g, layout.readout, readoutBig, readoutSmall, m.limiting ? 1.0f : 0.25f);
 }
 
 void Ember175AudioProcessorEditor::resized()
 {
-    const int w = getWidth();
-    const int h = getHeight();
-    title.setBounds(43, 25, 300, 38);
-    subtitle.setBounds(45, 63, 420, 20);
+    const float s = juce::jmin (static_cast<float> (getWidth()) / kDesignWidth,
+                                static_cast<float> (getHeight()) / kDesignHeight);
+    currentScale = s;
+    origin = { (getWidth() - kDesignWidth * s) * 0.5f, (getHeight() - kDesignHeight * s) * 0.5f };
 
-    juce::Slider* sliders[] = { &input, &threshold, &attack, &release, &headroom, &color, &mix, &output };
-    const int left = 42;
-    const int right = w - 42;
-    const int colW = (right - left) / 4;
-    const int deckTop = 119;
-    const int rowH = (h - 254 - 18) / 2;
-    for (int i = 0; i < 8; ++i)
+    for (auto& k : knobs)
     {
-        const int row = i / 4;
-        const int col = i % 4;
-        const int x = left + col * colW;
-        const int y = deckTop + row * rowH;
-        labels[(size_t)i]->setBounds(x, y + 3, colW, 22);
-        sliders[i]->setBounds(x + (colW - 112) / 2, y + 24, 112, juce::jmax(112, rowH - 28));
+        const auto& spec = k->getSpec();
+        // the knob component covers the bakelite plus a little breathing room
+        auto area = juce::Rectangle<float> (spec.centre.x - spec.radius * 1.3f,
+                                            spec.centre.y - spec.radius * 1.3f,
+                                            spec.radius * 2.6f, spec.radius * 2.6f);
+        k->setBounds (place (area));
     }
-    const int controlsY = h - 121;
-    bypass.setBounds(45, controlsY, 112, 26);
-    stereoLink.setBounds(165, controlsY, 145, 26);
-    meterLabel.setBounds(w - 245, controlsY, 190, 26);
-    footerLabel.setBounds(250, h - 31, w - 300, 16);
+
+    powerButton.setBounds (place (layout.power));
+    linkButton.setBounds (place (layout.linkButton));
+    continuousButton.setBounds (place (layout.vernierButton));
+    meterButton.setBounds (place (layout.meterButton));
 }
 
 void Ember175AudioProcessorEditor::timerCallback()
 {
-    meterLabel.setText("GAIN REDUCTION  " + juce::String(processor.getGainReductionDb(), 1) + " dB", juce::dontSendNotification);
-    repaint();
+    meterGr = processor.getGainReductionDb();
+    meterLevel = processor.getOutputLevelDb();
+
+    // mechanical ballistics for the needle
+    const bool grMode = processor.read ("grMeterMode") > 0.5f;
+    needleGr += (meterGr - needleGr) * 0.42f;
+    needleLevel += (meterLevel - needleLevel) * (grMode ? 0.5f : 0.3f);
+
+    // readout: hovered control wins, otherwise the two quantities that matter
+    if (hoveredKnob != nullptr)
+    {
+        juce::String name = hoveredKnob->getSpec().label;
+        readoutBig = name + "  " + hoveredKnob->getDisplayValue();
+        readoutSmall = "INPUT " + juce::String (processor.read ("input"), 1)
+                     + " dB    OUTPUT " + juce::String (processor.read ("output"), 1) + " dB";
+    }
+    else
+    {
+        const float g = meterGr < 0.05f ? 0.0f : meterGr;
+        readoutBig = "GR  " + juce::String (g, 1) + " dB";
+        juce::String lvl = meterLevel < -90.0f ? juce::String ("-inf")
+                                               : juce::String (meterLevel, 1);
+        const float attackMs = ember::model::attackNormToMs (processor.read ("attack"));
+        const juce::String attackText = attackMs <= 0.0f ? juce::String ("OFF")
+                                                         : juce::String (attackMs, 2) + " ms";
+        readoutSmall = "OUT " + lvl + " dBFS    A " + attackText
+                     + "    R " + juce::String (ember::model::releaseFromNorm (processor.read ("release")), 0) + " ms";
+    }
+
+    if (++repaintDivider >= 2)
+    {
+        repaintDivider = 0;
+        repaint (place (layout.meter.expanded (6.0f)));
+        repaint (place (layout.readout));
+    }
+}
+
+void Ember175AudioProcessorEditor::setHovered (PanelKnob* k)
+{
+    hoveredKnob = k;
+    repaint (place (layout.readout));
+}
+
+juce::Rectangle<int> Ember175AudioProcessorEditor::place (juce::Rectangle<float> designArea) const
+{
+    return juce::Rectangle<int> (juce::roundToInt (origin.x + designArea.getX() * currentScale),
+                                 juce::roundToInt (origin.y + designArea.getY() * currentScale),
+                                 juce::roundToInt (designArea.getWidth() * currentScale),
+                                 juce::roundToInt (designArea.getHeight() * currentScale));
 }
