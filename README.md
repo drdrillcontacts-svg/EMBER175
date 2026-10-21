@@ -166,7 +166,12 @@ change without breaking the invariants.
 
 ---
 
-## 6. Legal
+## 6. Analysis notes (Persian)
+
+A Persian summary of the audit of the previous version, the new architecture and
+the measurement tables is in [`docs/ANALYSIS-fa.md`](docs/ANALYSIS-fa.md).
+
+## 7. Legal
 
 * Independent project. "Universal Audio", "UA", "175-B", "176", "6BC8" and
   related marks belong to their owners; the name is used only to describe what
