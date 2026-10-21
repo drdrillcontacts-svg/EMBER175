@@ -104,9 +104,8 @@ PanelLayout makeLayout()
     l.attack.ringRadius = 32.0f;
     l.attack.angleMin = deg (-140.0f);
     l.attack.angleMax = deg (140.0f);
-    l.attack.tickCount = 11;
-    l.attack.tickCount = 8;
-    l.attack.tickLabels = juce::StringArray { "1", "2", "3", "4", "5", "6", "7", "8" };
+    l.attack.tickCount = 10;                             // one tick per printed number
+    l.attack.tickLabels = numbers (1.0f, 10.0f, 1.0f);    // 1 .. 10, like the hardware dial
     l.attack.label = "ATTACK";
     l.attack.offLabel = "OFF";
     l.attack.captionAbove = true;
@@ -139,9 +138,8 @@ PanelLayout makeLayout()
     l.release.ringRadius = 32.0f;
     l.release.angleMin = deg (-140.0f);
     l.release.angleMax = deg (140.0f);
-    l.release.tickCount = 11;
-    l.release.tickCount = 8;
-    l.release.tickLabels = juce::StringArray { "1", "2", "3", "4", "5", "6", "7", "8" };
+    l.release.tickCount = 10;                             // one tick per printed number
+    l.release.tickLabels = numbers (1.0f, 10.0f, 1.0f);    // 1 .. 10, like the hardware dial
     l.release.label = "RELEASE";
     l.release.offLabel = "OFF";
     l.release.captionAbove = true;
