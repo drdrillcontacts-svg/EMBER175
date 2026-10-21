@@ -106,7 +106,9 @@ Right-click anywhere opens the setup menu.
 `Tools/UIPreview.cpp` renders the same panel to a PNG without a display, which is
 how `docs/panel-render.png` was produced (and how CI checks the layout). It draws
 the knobs through the same `PanelRenderer::paintKnobComponent` entry point the
-editor uses, so a placement regression shows up in CI as a visibly wrong panel.
+editor uses, so a placement regression shows up in CI as a visibly wrong panel. It also asserts,
+for several window sizes, that every knob lands inside the window; a failed
+check makes the CI render step exit non-zero.
 
 ---
 

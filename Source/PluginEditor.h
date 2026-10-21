@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "UI/PanelMapping.h"
 #include "UI/PanelRenderer.h"
 
 //==============================================================================
@@ -70,8 +71,7 @@ private:
 
     Ember175AudioProcessor& processor;
     ember::ui::PanelLayout layout;
-    float currentScale = 1.0f;
-    juce::Point<float> origin;
+    ember::ui::PanelMapping mapping;
 
     std::vector<std::unique_ptr<PanelKnob>> knobs;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> knobAttachments;

@@ -87,6 +87,7 @@ target_sources(EMBER175 PRIVATE
     Source/UI/PanelRenderer.h
     Source/UI/PanelLayout.cpp
     Source/UI/PanelLayout.h
+    Source/UI/PanelMapping.h
 )
 
 target_link_libraries(EMBER175 PRIVATE
@@ -119,6 +120,7 @@ if (EMBER_BUILD_UI_PREVIEW)
         Tools/UIPreview.cpp
         Source/UI/PanelRenderer.cpp
         Source/UI/PanelLayout.cpp
+        Source/UI/PanelMapping.h
     )
     target_include_directories(ember_ui_preview PRIVATE Source)
     target_link_libraries(ember_ui_preview PRIVATE

@@ -29,13 +29,42 @@ int main (int argc, char** argv)
     g.fillAll (juce::Colour (0xff141010));
 
     auto layout = ember::ui::makeLayout();
-    const float scale = std::min (static_cast<float> (width) / ember::ui::kDesignWidth,
-                                  static_cast<float> (height) / ember::ui::kDesignHeight);
-    const float ox = (static_cast<float> (width) - ember::ui::kDesignWidth * scale) * 0.5f;
-    const float oy = (static_cast<float> (height) - ember::ui::kDesignHeight * scale) * 0.5f;
+    const auto mapping = ember::ui::PanelMapping::fit (width, height);
+
+    // Layout sanity check: every knob must land inside the rendered window at a
+    // range of sizes. This is the check that would have caught the knobs being
+    // drawn off-screen, so CI now fails loudly instead of shipping a blank panel.
+    {
+        const int sizes[][2] = { { width, height }, { 720, 216 }, { 1234, 500 }, { 2400, 1200 } };
+        for (auto& s : sizes)
+        {
+            const auto m = ember::ui::PanelMapping::fit (s[0], s[1]);
+            for (int i = 0; i < ember::ui::PanelLayout::numKnobs; ++i)
+            {
+                auto* k = layout.knobFor (i);
+                if (k == nullptr)
+                    continue;
+
+                const juce::Rectangle<float> knobArea (k->centre.x - k->radius * 1.3f,
+                                                       k->centre.y - k->radius * 1.3f,
+                                                       k->radius * 2.6f, k->radius * 2.6f);
+                const auto r = m.area (knobArea);
+                const auto centreOk = m.toWindow (k->centre).getDistanceFrom (
+                    juce::Point<float> (static_cast<float> (m.area (knobArea).getCentreX()),
+                                        static_cast<float> (m.area (knobArea).getCentreY()))) < 2.5f;
+
+                if (r.getX() < 0 || r.getY() < 0 || r.getRight() > s[0] || r.getBottom() > s[1] || ! centreOk)
+                {
+                    std::printf ("layout check FAILED: knob %d outside %dx%d (x %d y %d w %d h %d)\n",
+                                 i, s[0], s[1], r.getX(), r.getY(), r.getWidth(), r.getHeight());
+                    return 1;
+                }
+            }
+        }
+    }
 
     g.saveState();
-    g.addTransform (juce::AffineTransform().scaled (scale).translated (ox, oy));
+    g.addTransform (mapping.transform());
     ember::ui::PanelRenderer::renderBackground (g, layout, 1.0f);
 
     struct Demo { int index; float norm; };

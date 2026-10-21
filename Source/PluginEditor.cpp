@@ -9,7 +9,9 @@ PanelKnob::PanelKnob (KnobSpec s, const juce::String& id, double minValue, doubl
     setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     setRotaryParameters (0.0f, juce::MathConstants<float>::twoPi, false);
-    setRange (minValue, maxValue, (maxValue - minValue) > 1.5 ? 0.001 : 1.0);
+    // the two-position impedance / response switches detent, everything else is
+    // continuous (the 2 dB attenuator steps are applied in the processor)
+    setRange (minValue, maxValue, spec.style == KnobStyle::small ? 1.0 : 0.001);
     setVelocityBasedMode (false);
     setMouseDragSensitivity (spec.style == KnobStyle::big ? 280 : 200);
     setWantsKeyboardFocus (false);
@@ -162,8 +164,8 @@ void Ember175AudioProcessorEditor::paint (juce::Graphics& g)
     g.fillAll (juce::Colour (0xff0f0c0c));
 
     juce::Graphics::ScopedSaveState state (g);
-    g.addTransform (juce::AffineTransform::translation (origin.x, origin.y));
-    PanelRenderer::renderBackground (g, layout, currentScale);
+    g.addTransform (juce::AffineTransform::translation (mapping.origin.x, mapping.origin.y));
+    PanelRenderer::renderBackground (g, layout, mapping.scale);
 
     // meter
     MeterState m;
@@ -185,10 +187,7 @@ void Ember175AudioProcessorEditor::paint (juce::Graphics& g)
 
 void Ember175AudioProcessorEditor::resized()
 {
-    const float s = juce::jmin (static_cast<float> (getWidth()) / kDesignWidth,
-                                static_cast<float> (getHeight()) / kDesignHeight);
-    currentScale = s;
-    origin = { (getWidth() - kDesignWidth * s) * 0.5f, (getHeight() - kDesignHeight * s) * 0.5f };
+    mapping = PanelMapping::fit (getWidth(), getHeight());
 
     const int count = juce::jmin (static_cast<int> (knobs.size()), PanelLayout::numKnobs);
     for (int i = 0; i < count; ++i)
@@ -206,10 +205,7 @@ void Ember175AudioProcessorEditor::resized()
 
 juce::Rectangle<int> Ember175AudioProcessorEditor::place (juce::Rectangle<float> designArea) const
 {
-    return juce::Rectangle<int> (juce::roundToInt (origin.x + designArea.getX() * currentScale),
-                                 juce::roundToInt (origin.y + designArea.getY() * currentScale),
-                                 juce::roundToInt (designArea.getWidth() * currentScale),
-                                 juce::roundToInt (designArea.getHeight() * currentScale));
+    return mapping.area (designArea);
 }
 
 void Ember175AudioProcessorEditor::mouseDown (const juce::MouseEvent& e)

@@ -7,6 +7,7 @@
 */
 
 #include "PanelLayout.h"
+#include "PanelMapping.h"
 
 namespace ember::ui
 {
