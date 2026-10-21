@@ -16,12 +16,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-namespace juce
-{
-    const char* juce_compilationDate = __DATE__;
-    const char* juce_compilationTime = __TIME__;
-}
-
 int main (int argc, char** argv)
 {
     const juce::String outPath = argc > 1 ? juce::String (argv[1]) : juce::String ("ember175-panel.png");

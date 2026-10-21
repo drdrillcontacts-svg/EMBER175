@@ -10,18 +10,22 @@ if (APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS version" FORCE)
 endif()
 
+option(EMBER_BUILD_PLUGIN "Build the plug-in targets (needs JUCE + platform SDKs)" ON)
+
 # ---------------------------------------------------------------------------
 # JUCE
 # ---------------------------------------------------------------------------
-include(FetchContent)
+if (EMBER_BUILD_PLUGIN)
+    include(FetchContent)
 
-set(JUCE_VERSION "8.0.6")
-FetchContent_Declare(JUCE
-    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG ${JUCE_VERSION}
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(JUCE)
+    set(JUCE_VERSION "8.0.6")
+    FetchContent_Declare(JUCE
+        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+        GIT_TAG ${JUCE_VERSION}
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(JUCE)
+endif()
 
 # ---------------------------------------------------------------------------
 # DSP core (no JUCE dependency, so the tests build and run anywhere)
@@ -47,6 +51,7 @@ add_test(NAME dsp COMMAND ember_dsp_tests)
 # ---------------------------------------------------------------------------
 # Plug-in
 # ---------------------------------------------------------------------------
+if (EMBER_BUILD_PLUGIN)
 set(EMBER_FORMATS VST3 Standalone)
 if (APPLE)
     list(APPEND EMBER_FORMATS AU)
@@ -132,3 +137,5 @@ if (EMBER_BUILD_UI_PREVIEW)
         COMMENT "Rendering the EMBER 175-B front panel"
     )
 endif()
+
+endif()  # EMBER_BUILD_PLUGIN
