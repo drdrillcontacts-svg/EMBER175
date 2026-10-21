@@ -239,9 +239,15 @@ void Processor::updateRates (const Parameters& p) noexcept
     relSlowCoef_ = timeCoef (fs, std::max (releaseMs * 1.25f, 4.0f));
     rectCoef_ = timeCoef (fs, clampf (releaseMs * 0.25f, 6.0f, 130.0f));
     rectFastCoef_ = timeCoef (fs, 0.004f);
+    scHpCoef_ = onePoleCoef (fs, 160.0f);
+
+    // 300 ohm position loads the input transformer harder
+    ironDrive_ = p.lowZInput ? 1.22f : 1.0f;
+    ironComp_ = 1.0f / ironDrive_;
 
     limiting_ = attackMs > 0.0f && ! p.bypass;
     linked_ = p.stereoLink;
+    detectorHighPass_ = p.detectorHighPass;
 }
 
 void Processor::process (float* const* channels, int numChannels, int numSamples, const Parameters& p)
@@ -396,7 +402,7 @@ void Processor::processChunk (float* const* channels, int numChannels, int numSa
             s.xfHpZ = flushDenormal (s.xfHpZ + xfHp * hp);
             s.lfZ = flushDenormal (s.lfZ + ironLp * (hp - s.lfZ));
             const float lf = s.lfZ;
-            const float lfSat = softSat (lf, 1.1f);
+            const float lfSat = softSat (lf * ironDrive_, 1.1f) * ironComp_;
             x = (hp - lf) + lfSat;
 
             // 6BC8 grid curvature: a little even order from the triode mismatch
@@ -405,8 +411,18 @@ void Processor::processChunk (float* const* channels, int numChannels, int numSa
 
             // variable mu gain element
             // the 6AL5 sidechain is fed from the transformer secondary, so it
-            // sees exactly the signal that arrives at the gain element
-            drive_[ch] = x;
+            // sees exactly the signal that arrives at the gain element. The
+            // LOW / HI switch can high-pass that feed so bass does not pump the
+            // whole mix.
+            if (detectorHighPass_)
+            {
+                s.scHpZ = flushDenormal (s.scHpZ + scHpCoef_ * (x - s.scHpZ));
+                drive_[ch] = x - s.scHpZ;
+            }
+            else
+            {
+                drive_[ch] = x;
+            }
 
             float y = x * s.gain;
 

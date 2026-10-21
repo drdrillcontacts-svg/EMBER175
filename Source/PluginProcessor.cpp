@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <cmath>
 
 namespace
 {
@@ -25,13 +26,13 @@ Ember175AudioProcessor::APVTS::ParameterLayout Ember175AudioProcessor::createPar
     // ---------------------------------------------------------------- front panel
     l.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "input", 1 }, "Input",
-        R (ember::model::kInputMinDb, ember::model::kInputMaxDb, ember::model::kStepDb), 20.0f,
+        R (ember::model::kInputMinDb, ember::model::kInputMaxDb, 0.1f), 20.0f,
         juce::AudioParameterFloatAttributes().withLabel ("dB").withStringFromValueFunction (
             [] (float v, int) { return dbText (v); })));
 
     l.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "output", 1 }, "Output",
-        R (ember::model::kOutputMinDb, ember::model::kOutputMaxDb, ember::model::kStepDb), 20.0f,
+        R (ember::model::kOutputMinDb, ember::model::kOutputMaxDb, 0.1f), 20.0f,
         juce::AudioParameterFloatAttributes().withLabel ("dB").withStringFromValueFunction (
             [] (float v, int) { return dbText (v); })));
 
@@ -52,18 +53,16 @@ Ember175AudioProcessor::APVTS::ParameterLayout Ember175AudioProcessor::createPar
         juce::AudioParameterFloatAttributes().withStringFromValueFunction (
             [] (float v, int) { return juce::String (ember::model::releaseFromNorm (v), 0) + " ms"; })));
 
-    // verniers
+    // input vernier, printed +/- 2 dB around the input knob
     l.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "inputTrim", 1 }, "Input Vernier",
-        R (-ember::model::kVernierDb, ember::model::kVernierDb, 0.1f), 0.0f,
+        juce::ParameterID { "vernier", 1 }, "Input Vernier",
+        R (-ember::model::kVernierDb, ember::model::kVernierDb, 0.05f), 0.0f,
         juce::AudioParameterFloatAttributes().withStringFromValueFunction (
             [] (float v, int) { return dbText (v); })));
 
-    l.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "outputTrim", 1 }, "Output Vernier",
-        R (-ember::model::kVernierDb, ember::model::kVernierDb, 0.1f), 0.0f,
-        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
-            [] (float v, int) { return dbText (v); })));
+    // front panel switches
+    l.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "lowHigh", 1 }, "Detector LF Response", false));
+    l.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "impedance", 1 }, "Input Impedance 300", false));
 
     l.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "grTrim", 1 }, "G/R Vernier",
@@ -120,10 +119,20 @@ void Ember175AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         buffer.clear (ch, 0, buffer.getNumSamples());
 
     ember::Parameters p;
-    p.inputDb      = read ("input");
-    p.inputTrimDb  = read ("inputTrim");
-    p.outputDb     = read ("output");
-    p.outputTrimDb = read ("outputTrim");
+    const bool continuous = read ("continuous") > 0.5f;
+    auto taper = [continuous] (float db)
+    {
+        // the hardware attenuators are stepped in 2 dB detents; the plug-in can
+        // run them continuously for fine automation
+        return continuous ? db : std::round (db * 0.5f) * 2.0f;
+    };
+
+    p.inputDb      = taper (read ("input"));
+    p.inputTrimDb  = read ("vernier");
+    p.outputDb     = taper (read ("output"));
+    p.outputTrimDb = 0.0f;
+    p.detectorHighPass = read ("lowHigh") > 0.5f;
+    p.lowZInput    = read ("impedance") > 0.5f;
     p.grTrimDb     = read ("grTrim");
     p.attackMs     = ember::model::attackNormToMs (read ("attack"));
     p.releaseMs    = ember::model::releaseFromNorm (read ("release"));

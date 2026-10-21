@@ -43,6 +43,8 @@ struct Parameters
     float mix          = 1.0f;    // 0 .. 1
     bool  bypass       = false;
     bool  stereoLink   = true;
+    bool  detectorHighPass = false;   // LOW / HI switch: HI high-passes the sidechain
+    bool  lowZInput    = false;       // 300 ohm position: heavier transformer loading
 };
 
 class Processor
@@ -88,6 +90,7 @@ private:
         float dcZ = 0.0f;        // DC block after the vari-mu stage
         float ampZ = 0.0f;       // amplifier coupling
         float outZ = 0.0f;       // output transformer coupling
+        float scHpZ = 0.0f;      // sidechain high-pass memory
         float env = 0.0f;        // 6AL5 rectifier memory
         float cv1 = 0.0f;        // attack capacitor, dB domain
         float cv2 = 0.0f;        // release tail capacitor, dB domain
@@ -117,11 +120,13 @@ private:
     // smoothed parameters
     float inGain_ = 1.0f, outGain_ = 1.0f, mix_ = 1.0f, charPre_ = 1.0f, charPost_ = 1.0f;
     float attackCoef_ = 0.0f, relFastCoef_ = 0.0f, relSlowCoef_ = 0.0f;
-    float rectCoef_ = 0.0f, rectFastCoef_ = 0.0f;
+    float rectCoef_ = 0.0f, rectFastCoef_ = 0.0f, scHpCoef_ = 0.0f;
+    float ironDrive_ = 1.0f, ironComp_ = 1.0f;
     float thresholdDb_ = -6.2f, ratioKnee_ = 12.0f, ratioGrowth_ = 1.2f, maxGr_ = 46.0f;
     bool  limiting_ = true;
     bool  linked_ = true;
     bool  snapParams_ = true;
+    bool  detectorHighPass_ = false;
 
     // meters
     float instantGr_ = 0.0f;

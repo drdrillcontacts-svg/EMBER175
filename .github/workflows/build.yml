@@ -155,7 +155,7 @@ jobs:
         run: |
           PREVIEW=$(find build -name "ember_ui_preview" -type f -perm -u+x | head -n 1)
           echo "renderer: $PREVIEW"
-          "$PREVIEW" ember175-panel.png 1800 900
+          "$PREVIEW" ember175-panel.png 1800 540
 
       - name: Package
         run: |

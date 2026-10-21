@@ -132,7 +132,7 @@ if (EMBER_BUILD_UI_PREVIEW)
         JUCE_STANDALONE_APPLICATION=1
     )
     add_custom_target(render_panel
-        COMMAND ember_ui_preview ${CMAKE_CURRENT_BINARY_DIR}/ember175-panel.png 1800 900
+        COMMAND ember_ui_preview ${CMAKE_CURRENT_BINARY_DIR}/ember175-panel.png 1800 540
         DEPENDS ember_ui_preview
         COMMENT "Rendering the EMBER 175-B front panel"
     )

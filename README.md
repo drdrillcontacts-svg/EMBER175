@@ -30,7 +30,9 @@ calibration target. Everything below is implemented in `Source/EmberDSP.cpp`.
 | Input / Output | 0–40 dB stepped attenuators in 2 dB steps + vernier | 2 dB detents, `INPUT VERNIER` / `VERNIER` ±2 dB trims, switchable to continuous |
 | I/O | 600 Ω transformer balanced, UTC transformers | transformer model with LF core saturation, second-order asymmetry and DC blocking at both ends |
 | Amplifier | 12AX7 / 12BH7 gain stage | soft single-ended stage, unity gain at low level, gently louder harmonics as it is driven |
-| Meter | VU / gain reduction | dual-scale VU + GR meter with mechanical needle ballistics |
+| Meter | VU / gain reduction | large amber VU with mechanical needle ballistics, switchable to a GR reading |
+| Detector response | — (no sidechain filter on the original) | `LOW / HI`: the detector is fed through a 160 Hz high-pass, so bass no longer ducks the whole mix |
+| Input impedance | 600 Ω transformer balanced | `IMPEDANCE 600 / 300`: a second transformer tap that adds ~1.7 dB of iron and darkens the top |
 | Ratio, attack and release ranges | — | regression-tested (`Tests/DSPTests.cpp`) |
 
 ### Signal path
@@ -50,11 +52,18 @@ band. Measured worst-case folded harmonic at 11 kHz / −6 dBFS: below −95 dB.
 
 ### Extension controls (not on the hardware)
 
-`PARALLEL MIX` (0–100 %), `HEADROOM` (±12 dB, moves the operating level and the
-limiting threshold together, exactly like the plug-in-era "headroom" control),
-`STEREO LINK`, `STEPPED / CONTINUOUS` attenuators, `METER` mode, and a
-click-free power (bypass) switch. Bypass is sample-aligned with the processed
-path so it can be automated without clicks.
+`MIX` (0–100 %, parallel/feel control) sits on the panel because a 175-B user
+reaches for it constantly. Everything else lives in the right-click **setup
+menu**, so the front panel keeps the hardware's single row of controls:
+
+| Setup entry | Range | What it does |
+| --- | --- | --- |
+| Meter shows | VU / gain reduction | what the needle reads |
+| Input / output taper | 2 dB detents / continuous | hardware steps, or fine automation |
+| Headroom | ±12 dB | moves the operating level and the threshold together |
+| G/R vernier | ±6 dB | threshold calibration trim |
+| Stereo link | on / off | same as the `S.C. LINK` switch |
+| Power | on / off | click-free bypass, sample-aligned with the processed path |
 
 ### Delay
 
@@ -70,14 +79,34 @@ unprocessed source (there is a test for it).
 
 The panel is drawn entirely in code (`Source/UI/PanelRenderer.cpp`) — no bitmaps,
 so it stays sharp at any window size and weighs nothing. It is laid out in a
-1200 × 600 design space with a uniform scale, mimicking the rack unit: brushed
-ears with rack slots, screws, XLR I/O, a weathered dark-oxide face, the brass
-`EMBER / LIMITING AMPLIFIER NO. 175-B` plate, and the cream VU meter under
-glass. Knobs have a fluted bakelite body, a printed scale ring and a pointer,
-and drag vertically or in a rotary motion.
+1200 × 360 design space that the editor scales uniformly into the window, so the
+proportions hold from 720 px wide up to full screen.
+
+Left to right, one single row, exactly like the reference hardware:
+
+```
+LOW/HI ─ S.C. LINK + lamp │ INPUT ⌀ · IMPEDANCE · VERNIER │ amber VU + brand │ ATTACK · OUTPUT · MIX · RELEASE · lamp + POWER
+```
+
+* dark oxblood panel with a fine brushed texture, cream silkscreen lettering and
+  thin hairline rules under the groups;
+* large **INPUT** and **OUTPUT** knobs in knurled brushed aluminium with a domed
+  centre cap and a white pointer; smaller machined dials for the rest, each with
+  its own printed tick ring and numbers;
+* a big amber, back-lit VU card under glass with a mechanical needle, the red
+  **+1 … +3** zone, `VU` and `dB` legends;
+* the `E` monogram above `EMBER 175 / TUBE COMPRESSOR` under the meter;
+* amber activity lamp next to `S.C. LINK`, red mains lamp next to `POWER`;
+* a small status line (GR, output level, attack and release in real units) at the
+  bottom right; hovering a knob shows that knob's own value there instead.
+
+Knobs respond to vertical drag, the mouse wheel and double-click to default.
+Right-click anywhere opens the setup menu.
 
 `Tools/UIPreview.cpp` renders the same panel to a PNG without a display, which is
-how `docs/panel-render.png` was produced (and how CI checks the layout).
+how `docs/panel-render.png` was produced (and how CI checks the layout). It draws
+the knobs through the same `PanelRenderer::paintKnobComponent` entry point the
+editor uses, so a placement regression shows up in CI as a visibly wrong panel.
 
 ---
 
@@ -157,8 +186,9 @@ measured capture of a specific chassis. What is still approximation:
 * transformer hysteresis is represented by an asymmetric soft saturation, not a
   JA-style hysteresis model;
 * unit-to-unit variation (tube ageing, bias drift) is not modelled;
-* there is no sidechain high-pass / detector filter, because the original 175-B
-  has none.
+* the `LOW / HI` detector filter and the `300 Ω` input tap are plug-in
+  conveniences (a 160 Hz sidechain high-pass and an extra iron stage), not
+  circuits lifted from the original, which has neither.
 
 To tighten it, capture a legally available reference (hardware you own, or a
 licensed plug-in) at documented levels and sample rates, and fit the knee,

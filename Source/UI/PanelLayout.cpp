@@ -6,11 +6,11 @@ namespace
 {
     constexpr float deg (float d) { return d * juce::MathConstants<float>::pi / 180.0f; }
 
-    juce::StringArray numbers (int first, int last, int step)
+    juce::StringArray numbers (float first, float last, float step, int decimals = 0)
     {
         juce::StringArray a;
-        for (int v = first; v <= last; v += step)
-            a.add (juce::String (v));
+        for (float v = first; v <= last + 0.001f; v += step)
+            a.add (juce::String (v, decimals));
         return a;
     }
 }
@@ -19,15 +19,14 @@ KnobSpec* PanelLayout::knobFor (int index) noexcept
 {
     switch (index)
     {
-        case 0: return &input;
-        case 1: return &output;
-        case 2: return &attack;
-        case 3: return &release;
-        case 4: return &inputTrim;
-        case 5: return &outputTrim;
-        case 6: return &grTrim;
-        case 7: return &mix;
-        case 8: return &headroom;
+        case 0: return &lowHigh;
+        case 1: return &input;
+        case 2: return &impedance;
+        case 3: return &vernier;
+        case 4: return &attack;
+        case 5: return &output;
+        case 6: return &mix;
+        case 7: return &release;
         default: break;
     }
     return nullptr;
@@ -37,137 +36,129 @@ PanelLayout makeLayout()
 {
     PanelLayout l;
 
-    l.chassis = { 0.0f, 0.0f, kDesignWidth, kDesignHeight };
-    l.earLeft = { 0.0f, 0.0f, 74.0f, kDesignHeight };
-    l.earRight = { kDesignWidth - 74.0f, 0.0f, 74.0f, kDesignHeight };
-    l.face = { 74.0f, 8.0f, kDesignWidth - 148.0f, 472.0f };
-    l.strip = { 74.0f, 486.0f, kDesignWidth - 148.0f, 106.0f };
+    l.panel = { 0.0f, 0.0f, kDesignWidth, kDesignHeight };
+    l.face  = { 10.0f, 8.0f, kDesignWidth - 20.0f, kDesignHeight - 16.0f };
 
-    l.screws[0] = { 94.0f, 26.0f };
-    l.screws[1] = { kDesignWidth - 94.0f, 26.0f };
-    l.screws[2] = { 94.0f, 462.0f };
-    l.screws[3] = { kDesignWidth - 94.0f, 462.0f };
+    // ---- meter -----------------------------------------------------------
+    l.meter     = { 500.0f, 40.0f, 284.0f, 146.0f };
+    l.meterFace = l.meter.reduced (8.0f);
 
-    // meter sits left of centre, as on the rack unit, so that the ATTACK knob
-    // has room to its right
-    l.meter = { 516.0f, 58.0f, 244.0f, 186.0f };
-    l.meterFace = l.meter.reduced (9.0f);
-    l.brandPlate = { 516.0f, 252.0f, 244.0f, 52.0f };
-    l.readout = { 800.0f, 500.0f, 292.0f, 70.0f };
+    // ---- brand block -----------------------------------------------------
+    l.brandLogo = { 642.0f, 232.0f };
+    l.brandLogoRadius = 21.0f;
+    l.brandName = { 530.0f, 262.0f, 224.0f, 22.0f };
+    l.brandSub  = { 530.0f, 284.0f, 224.0f, 14.0f };
 
-    l.xlrInput[0] = { 98.0f, 90.0f, 58.0f, 58.0f };
-    l.xlrInput[1] = { 170.0f, 90.0f, 58.0f, 58.0f };
-    l.xlrOutput[0] = { 98.0f, 248.0f, 58.0f, 58.0f };
-    l.xlrOutput[1] = { 170.0f, 248.0f, 58.0f, 58.0f };
-    l.xlrInputLabel = { 163.0f, 60.0f };
-    l.xlrOutputLabel = { 163.0f, 218.0f };
+    // ---- left group ------------------------------------------------------
+    l.lowHigh.label = "";
+    l.lowHigh.style = KnobStyle::small;
+    l.lowHigh.centre = { 78.0f, 92.0f };
+    l.lowHigh.radius = 16.0f;
+    l.lowHigh.ringRadius = 27.0f;
+    l.lowHigh.angleMin = deg (-38.0f);
+    l.lowHigh.angleMax = deg (38.0f);
+    l.lowHigh.tickCount = 3;
+    l.lowHigh.leftLabel = "LOW";
+    l.lowHigh.rightLabel = "HI";
+    l.lowHigh.captionAbove = false;
 
-    const float bigSweep = deg (150.0f);
-    const float smallSweep = deg (135.0f);
-
-    // ---- INPUT: the big stepped attenuator ------------------------------
     l.input.label = "INPUT";
-    l.input.style = KnobStyle::large;
-    l.input.centre = { 396.0f, 250.0f };
-    l.input.radius = 60.0f;
-    l.input.ringRadius = 92.0f;
-    l.input.angleMin = -bigSweep;
-    l.input.angleMax = bigSweep;
-    l.input.tickCount = 21;
-    l.input.tickLabels = numbers (0, 40, 2);
-    l.input.showNumbers = true;
+    l.input.style = KnobStyle::big;
+    l.input.centre = { 262.0f, 138.0f };
+    l.input.radius = 52.0f;
+    l.input.ringRadius = 74.0f;
+    l.input.angleMin = deg (-145.0f);
+    l.input.angleMax = deg (145.0f);
+    l.input.tickCount = 17;
+    l.input.tickLabels = numbers (0.0f, 40.0f, 5.0f);     // 9 labels, 17 ticks
+    l.input.captionAbove = true;
 
-    // ---- OUTPUT: the other big stepped attenuator -----------------------
-    l.output.label = "OUTPUT";
-    l.output.style = KnobStyle::large;
-    l.output.centre = { 944.0f, 344.0f };
-    l.output.radius = 56.0f;
-    l.output.ringRadius = 86.0f;
-    l.output.angleMin = -bigSweep;
-    l.output.angleMax = bigSweep;
-    l.output.tickCount = 21;
-    l.output.tickLabels = numbers (0, 40, 2);
-    l.output.showNumbers = true;
+    l.impedance.label = "IMPEDANCE";
+    l.impedance.style = KnobStyle::small;
+    l.impedance.centre = { 396.0f, 96.0f };
+    l.impedance.radius = 17.0f;
+    l.impedance.ringRadius = 29.0f;
+    l.impedance.angleMin = deg (-38.0f);
+    l.impedance.angleMax = deg (38.0f);
+    l.impedance.tickCount = 3;
+    l.impedance.leftLabel = "600";
+    l.impedance.rightLabel = "300";
+    l.impedance.captionAbove = true;
 
-    // ---- attack and release: proper bakelite knobs, not trim pots --------
-    l.attack.label = "ATTACK";
+    l.vernier.label = "VERNIER";
+    l.vernier.style = KnobStyle::medium;
+    l.vernier.centre = { 396.0f, 216.0f };
+    l.vernier.radius = 20.0f;
+    l.vernier.ringRadius = 32.0f;
+    l.vernier.angleMin = deg (-140.0f);
+    l.vernier.angleMax = deg (140.0f);
+    l.vernier.tickCount = 11;
+    l.vernier.leftLabel = "-2";
+    l.vernier.rightLabel = "+2";
+    l.vernier.captionAbove = true;
+
+    // ---- right group -----------------------------------------------------
     l.attack.style = KnobStyle::medium;
-    l.attack.centre = { 852.0f, 152.0f };
-    l.attack.radius = 32.0f;
-    l.attack.ringRadius = 58.0f;
-    l.attack.angleMin = -smallSweep;
-    l.attack.angleMax = smallSweep;
+    l.attack.centre = { 852.0f, 98.0f };
+    l.attack.radius = 20.0f;
+    l.attack.ringRadius = 32.0f;
+    l.attack.angleMin = deg (-140.0f);
+    l.attack.angleMax = deg (140.0f);
     l.attack.tickCount = 11;
+    l.attack.tickCount = 8;
+    l.attack.tickLabels = juce::StringArray { "1", "2", "3", "4", "5", "6", "7", "8" };
+    l.attack.label = "ATTACK";
+    l.attack.offLabel = "OFF";
+    l.attack.captionAbove = true;
 
-    l.release.label = "RELEASE";
-    l.release.style = KnobStyle::medium;
-    l.release.centre = { 1046.0f, 152.0f };
-    l.release.radius = 32.0f;
-    l.release.ringRadius = 56.0f;
-    l.release.angleMin = -smallSweep;
-    l.release.angleMax = smallSweep;
-    l.release.tickCount = 11;
+    l.output.label = "OUTPUT";
+    l.output.style = KnobStyle::big;
+    l.output.centre = { 1006.0f, 146.0f };
+    l.output.radius = 50.0f;
+    l.output.ringRadius = 72.0f;
+    l.output.angleMin = deg (-145.0f);
+    l.output.angleMax = deg (145.0f);
+    l.output.tickCount = 17;
+    l.output.tickLabels = numbers (0.0f, 40.0f, 5.0f);    // 9 labels, 17 ticks
+    l.output.captionAbove = true;
 
-    // ---- verniers -------------------------------------------------------
-    l.inputTrim.label = "INPUT VERNIER";
-    l.inputTrim.style = KnobStyle::medium;
-    l.inputTrim.centre = { 212.0f, 380.0f };
-    l.inputTrim.radius = 27.0f;
-    l.inputTrim.ringRadius = 50.0f;
-    l.inputTrim.angleMin = -smallSweep;
-    l.inputTrim.angleMax = smallSweep;
-    l.inputTrim.tickCount = 11;
-    l.inputTrim.tickLabels = numbers (-2, 2, 1);
-    l.inputTrim.labelBelow = true;
-
-    l.grTrim.label = "G/R VERNIER";
-    l.grTrim.style = KnobStyle::medium;
-    l.grTrim.centre = { 570.0f, 400.0f };
-    l.grTrim.radius = 27.0f;
-    l.grTrim.ringRadius = 48.0f;
-    l.grTrim.angleMin = -smallSweep;
-    l.grTrim.angleMax = smallSweep;
-    l.grTrim.tickCount = 11;
-
-    l.outputTrim.label = "VERNIER";
-    l.outputTrim.style = KnobStyle::medium;
-    l.outputTrim.centre = { 742.0f, 372.0f };
-    l.outputTrim.radius = 27.0f;
-    l.outputTrim.ringRadius = 48.0f;
-    l.outputTrim.angleMin = -smallSweep;
-    l.outputTrim.angleMax = smallSweep;
-    l.outputTrim.tickCount = 11;
-    l.outputTrim.labelBelow = true;
-
-    // ---- extended controls ---------------------------------------------
-    l.mix.label = "PARALLEL MIX";
     l.mix.style = KnobStyle::medium;
-    l.mix.centre = { 152.0f, 528.0f };
-    l.mix.radius = 23.0f;
-    l.mix.ringRadius = 33.0f;
-    l.mix.angleMin = -smallSweep;
-    l.mix.angleMax = smallSweep;
-    l.mix.tickCount = 11;
-    l.mix.labelBelow = true;
+    l.mix.centre = { 862.0f, 226.0f };
+    l.mix.radius = 20.0f;
+    l.mix.ringRadius = 32.0f;
+    l.mix.angleMin = deg (-140.0f);
+    l.mix.angleMax = deg (140.0f);
+    l.mix.tickCount = 9;
+    l.mix.tickLabels = juce::StringArray { "0", "25", "50", "75", "100" };
+    l.mix.captionAbove = true;
+    l.mix.label = "MIX";
 
-    l.headroom.label = "HEADROOM";
-    l.headroom.style = KnobStyle::medium;
-    l.headroom.centre = { 268.0f, 528.0f };
-    l.headroom.radius = 23.0f;
-    l.headroom.ringRadius = 33.0f;
-    l.headroom.angleMin = -smallSweep;
-    l.headroom.angleMax = smallSweep;
-    l.headroom.tickCount = 11;
-    l.headroom.labelBelow = true;
+    l.release.style = KnobStyle::medium;
+    l.release.centre = { 1140.0f, 98.0f };
+    l.release.radius = 20.0f;
+    l.release.ringRadius = 32.0f;
+    l.release.angleMin = deg (-140.0f);
+    l.release.angleMax = deg (140.0f);
+    l.release.tickCount = 11;
+    l.release.tickCount = 8;
+    l.release.tickLabels = juce::StringArray { "1", "2", "3", "4", "5", "6", "7", "8" };
+    l.release.label = "RELEASE";
+    l.release.offLabel = "OFF";
+    l.release.captionAbove = true;
 
-    l.linkButton = { 336.0f, 508.0f, 122.0f, 42.0f };
-    l.vernierButton = { 470.0f, 508.0f, 150.0f, 42.0f };
-    l.meterButton = { 632.0f, 508.0f, 148.0f, 42.0f };
+    // ---- switches and lamps ---------------------------------------------
+    l.linkToggle = { 66.0f, 230.0f, 24.0f, 40.0f };
+    l.linkOffLabel = { 78.0f, 206.0f };
+    l.linkOnLabel  = { 78.0f, 278.0f };
+    l.lamp = { 152.0f, 250.0f };
+    l.lampRadius = 7.5f;
 
-    l.power = { 1082.0f, 330.0f, 44.0f, 66.0f };
-    l.powerLabel = { 1104.0f, 308.0f };
+    l.powerToggle = { 1118.0f, 250.0f, 24.0f, 40.0f };
+    l.powerOnLabel = { 1130.0f, 298.0f };
+    l.powerLamp = { 1064.0f, 270.0f };
+    l.powerLampRadius = 7.0f;
 
-    l.footerText = { 800.0f, 578.0f };
+    l.statusLine = { 700.0f, 330.0f, 470.0f, 16.0f };
 
     return l;
 }

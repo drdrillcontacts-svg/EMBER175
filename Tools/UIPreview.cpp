@@ -7,7 +7,9 @@
 
         ember_ui_preview out.png [width] [height]
 
-    This target is optional (EMBER_BUILD_UI_PREVIEW).
+    This target is optional (EMBER_BUILD_UI_PREVIEW). Knobs are drawn through
+    the same component entry point the editor uses, so the preview validates the
+    editor's placement maths rather than a private copy of it.
 */
 
 #include "../Source/UI/PanelRenderer.h"
@@ -20,11 +22,11 @@ int main (int argc, char** argv)
 {
     const juce::String outPath = argc > 1 ? juce::String (argv[1]) : juce::String ("ember175-panel.png");
     const int width = argc > 2 ? std::atoi (argv[2]) : 1800;
-    const int height = argc > 3 ? std::atoi (argv[3]) : 900;
+    const int height = argc > 3 ? std::atoi (argv[3]) : 540;
 
     juce::Image image (juce::Image::ARGB, width, height, true);
     juce::Graphics g (image);
-    g.fillAll (juce::Colour (0xff171614));
+    g.fillAll (juce::Colour (0xff141010));
 
     auto layout = ember::ui::makeLayout();
     const float scale = std::min (static_cast<float> (width) / ember::ui::kDesignWidth,
@@ -33,25 +35,21 @@ int main (int argc, char** argv)
     const float oy = (static_cast<float> (height) - ember::ui::kDesignHeight * scale) * 0.5f;
 
     g.saveState();
-    g.addTransform (juce::AffineTransform::translation (ox, oy).scaled (scale));
+    g.addTransform (juce::AffineTransform().scaled (scale).translated (ox, oy));
     ember::ui::PanelRenderer::renderBackground (g, layout, 1.0f);
 
     struct Demo { int index; float norm; };
     const Demo demo[] = {
-        { 0, 0.62f },   // input
-        { 1, 0.50f },   // output
-        { 2, 0.80f },   // attack
-        { 3, 0.45f },   // release
-        { 4, 0.58f },   // input vernier
-        { 5, 0.50f },   // output vernier
-        { 6, 0.50f },   // g/r vernier
-        { 7, 1.00f },   // mix
-        { 8, 0.50f }    // headroom
+        { 0, 0.25f },   // low / hi
+        { 1, 0.72f },   // input
+        { 2, 1.00f },   // impedance 300
+        { 3, 0.55f },   // vernier
+        { 4, 0.78f },   // attack
+        { 5, 0.58f },   // output
+        { 6, 1.00f },   // mix
+        { 7, 0.52f }    // release
     };
 
-    // Draw through the exact same entry point the editor's PanelKnob uses
-    // (component rectangle centred on the knob), so the preview proves the
-    // editor placement maths rather than a separate copy of it.
     for (auto d : demo)
     {
         if (auto* k = layout.knobFor (d.index))
@@ -59,36 +57,26 @@ int main (int argc, char** argv)
             const auto area = juce::Rectangle<float> (k->centre.x - k->radius * 1.3f,
                                                       k->centre.y - k->radius * 1.3f,
                                                       k->radius * 2.6f, k->radius * 2.6f);
-            ember::ui::PanelRenderer::paintKnobComponent (g, *k, area, d.norm, d.index == 0, false);
+            ember::ui::PanelRenderer::paintKnobComponent (g, *k, area, d.norm, false, d.index == 5);
         }
     }
 
     ember::ui::MeterState meter;
-    meter.grDb = 4.2f;
-    meter.levelDb = -7.0f;
-    meter.grMode = true;
+    meter.grDb = 0.0f;
+    meter.levelDb = -4.5f;
+    meter.grMode = false;
     meter.powered = true;
     ember::ui::PanelRenderer::drawMeterNeedle (g, layout, meter);
     ember::ui::PanelRenderer::drawMeterGlass (g, layout, meter);
 
-    ember::ui::PanelRenderer::drawToggle (g, layout.power, true, "ON", true);
+    ember::ui::PanelRenderer::drawToggle (g, layout.linkToggle, true, "S.C. LINK");
+    ember::ui::PanelRenderer::drawToggle (g, layout.powerToggle, true, "POWER");
 
-    auto link = layout.linkButton;
-    link.setHeight (18.0f);
-    link.setY (layout.linkButton.getCentreY() - 9.0f);
-    ember::ui::PanelRenderer::drawToggle (g, link, true, "LINKED", false);
+    ember::ui::PanelRenderer::drawLamp (g, layout.lamp, layout.lampRadius, juce::Colour (0xffffa53a), 0.75f);
+    ember::ui::PanelRenderer::drawLamp (g, layout.powerLamp, layout.powerLampRadius, juce::Colour (0xffff3a24), 1.0f);
 
-    auto vern = layout.vernierButton;
-    vern.setHeight (18.0f);
-    vern.setY (layout.vernierButton.getCentreY() - 9.0f);
-    ember::ui::PanelRenderer::drawToggle (g, vern, false, "CONTINUOUS", false);
-
-    auto meterBtn = layout.meterButton;
-    meterBtn.setHeight (18.0f);
-    meterBtn.setY (layout.meterButton.getCentreY() - 9.0f);
-    ember::ui::PanelRenderer::drawToggle (g, meterBtn, true, "GAIN REDUCTION", false);
-
-    ember::ui::PanelRenderer::drawReadout (g, layout.readout, "INPUT  24.0 dB", "GR 4.2 dB   OUT -7.0 dBFS", 1.0f);
+    ember::ui::PanelRenderer::drawStatus (g, layout.statusLine,
+                                          "GR 3.2 dB     OUT -7.4 dBFS     ATTACK 0.30 ms     RELEASE 120 ms");
 
     g.restoreState();
 

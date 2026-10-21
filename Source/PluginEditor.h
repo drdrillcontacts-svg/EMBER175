@@ -5,21 +5,23 @@
 #include "UI/PanelRenderer.h"
 
 //==============================================================================
-/** A rotary control that paints itself as the 175-B hardware knob. */
+/** A rotary control that paints itself as one of the panel knobs. */
 class PanelKnob final : public juce::Slider
 {
 public:
-    PanelKnob (ember::ui::KnobSpec spec, const juce::String& paramId);
+    PanelKnob (ember::ui::KnobSpec spec, const juce::String& paramId, double minValue, double maxValue);
 
     void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
     void mouseEnter (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
 
     const juce::String& getParamId() const noexcept { return paramId; }
-    juce::String getDisplayValue();
     const ember::ui::KnobSpec& getSpec() const noexcept { return spec; }
+    float getNormalised() const noexcept;
 
     std::function<void (PanelKnob*)> onHover;
+    std::function<void (juce::Point<int>)> onPopupMenu;
 
 private:
     ember::ui::KnobSpec spec;
@@ -30,20 +32,20 @@ private:
 };
 
 //==============================================================================
-/** LED style toggle used for the extended control switches. */
+/** Bat-handle toggle used for S.C. LINK and POWER. */
 class PanelToggle final : public juce::Button
 {
 public:
-    enum class Style { led, power };
-
-    PanelToggle (const juce::String& text, Style s);
+    PanelToggle (const juce::String& text, const juce::String& parameterId);
 
     void paintButton (juce::Graphics&, bool highlighted, bool down) override;
-    juce::Rectangle<float> getIndicatorArea() const;
+    void mouseDown (const juce::MouseEvent&) override;
+
+    const juce::String& getParamId() const noexcept { return paramId; }
+    std::function<void (juce::Point<int>)> onPopupMenu;
 
 private:
-    Style style;
-
+    juce::String paramId;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PanelToggle)
 };
 
@@ -57,11 +59,14 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
 
 private:
     void timerCallback() override;
-    void setHovered (PanelKnob*);
+    void showSetupMenu (juce::Point<int> screenPosition);
     juce::Rectangle<int> place (juce::Rectangle<float> designArea) const;
+    void attachKnob (int layoutIndex, const char* paramId, double min, double max);
+    void refreshStatus();
 
     Ember175AudioProcessor& processor;
     ember::ui::PanelLayout layout;
@@ -71,17 +76,15 @@ private:
     std::vector<std::unique_ptr<PanelKnob>> knobs;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> knobAttachments;
 
-    PanelToggle linkButton { "LINKED", PanelToggle::Style::led };
-    PanelToggle continuousButton { "CONTINUOUS", PanelToggle::Style::led };
-    PanelToggle meterButton { "GAIN REDUCTION", PanelToggle::Style::led };
-    PanelToggle powerButton { "ON", PanelToggle::Style::power };
+    PanelToggle linkButton { "S.C. LINK", "stereoLink" };
+    PanelToggle powerButton { "POWER", "power" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> linkAtt, powerAtt;
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> linkAtt, contAtt, meterAtt, powerAtt;
-
-    juce::String readoutBig { "INPUT  20.0 dB" }, readoutSmall { "GR 0.0 dB    OUT -inf dBFS" };
+    juce::String statusText { "GR 0.0 dB     OUT -inf dBFS" };
     PanelKnob* hoveredKnob = nullptr;
-    float meterGr = 0.0f, meterLevel = -100.0f;
+
     float needleGr = 0.0f, needleLevel = -100.0f;
+    float activity = 0.0f;
     int repaintDivider = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Ember175AudioProcessorEditor)
