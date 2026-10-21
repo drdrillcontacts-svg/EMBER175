@@ -488,10 +488,11 @@ void PanelRenderer::drawKnob (juce::Graphics& g, const KnobSpec& k, float normal
     const float value = juce::jlimit (0.0f, 1.0f, normalised);
     const float angle = k.angleMin + value * (k.angleMax - k.angleMin);
 
-    // cast shadow on the panel
+    // cast shadow on the panel; it has to be fully transparent by r * 1.25 so
+    // that it never reaches the edge of the knob component and gets clipped
     {
-        juce::ColourGradient sh (juce::Colours::black.withAlpha (0.55f), c.x, c.y + r * 0.5f,
-                                 juce::Colours::transparentBlack, c.x, c.y + r * 1.9f, true);
+        juce::ColourGradient sh (juce::Colours::black.withAlpha (0.55f), c.x, c.y + r * 0.45f,
+                                 juce::Colours::transparentBlack, c.x, c.y + r * 1.22f, true);
         g.setGradientFill (sh);
         g.fillEllipse (c.x - r * 1.2f, c.y - r * 0.5f, r * 2.4f, r * 2.6f);
     }
